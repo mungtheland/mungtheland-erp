@@ -118,7 +118,7 @@ function mdCheckIn(bookingId){
     if(values[5]!=='예약')throw Error('등원할 수 없는 예약상태: '+values[5]);
     if(values[6])return {bookingId:bookingId,alreadyCheckedIn:true};
     sheet.getRange(row,7).setValue(new Date());
-    sheet.getRange(row,9).setValue('등원');
+    sheet.getRange(row,9).setValue('등원 중');
     return {bookingId:bookingId,checkedIn:true};
   }finally{lock.releaseLock();}
 }
