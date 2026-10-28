@@ -1,0 +1,12 @@
+{
+  "name": "mungtheland-erp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mungtheland Google Apps Script ERP",
+  "scripts": {
+    "check": "node --check src/Code.js"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.0.0"
+  }
+}
