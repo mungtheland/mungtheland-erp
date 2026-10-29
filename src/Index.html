@@ -41,7 +41,7 @@ function refreshToday(){
         select.innerHTML='<option value="">이용권 불러오는 중...</option>';
         const deduct=document.createElement('button');deduct.type='button';deduct.className='action';deduct.textContent='선택 이용권 1회 차감';deduct.disabled=true;deduct.style.marginTop='0';
         area.append(select,deduct);div.appendChild(area);
-        gs('mdListPasses',x.dogId,passes=>{
+        gs('mdListBookingPasses',x.bookingId,passes=>{
           select.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent='차감할 이용권 선택';select.appendChild(empty);
           const usable=passes.filter(p=>p.paymentStatus==='완료'&&p.status==='사용 가능'&&Number(p.remainingCount)>0&&(!p.startDate||String(p.startDate).slice(0,10)<=dateInput.value)&&(!p.expiryDate||String(p.expiryDate).slice(0,10)>=dateInput.value));
           usable.forEach(p=>{const opt=document.createElement('option');opt.value=p.passId;opt.textContent=p.productName+' · 잔여 '+p.remainingCount+'회 · '+(p.expiryDate||'만료일 미정');select.appendChild(opt);});
