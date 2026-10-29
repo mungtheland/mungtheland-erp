@@ -57,7 +57,15 @@ $('#passForm').onsubmit=e=>{
  const data=values(e.target);
  data.confirmPaid=$('#passConfirm').checked;
  if(data.paymentStatus==='완료'&&!data.confirmPaid){show('결제 완료 확인에 체크해야 합니다.',true);return;}
- call('mdRegisterPass',data,e.submitter);
+ const btn=e.submitter;btn.disabled=true;show('처리 중...');
+ const submitPass=payload=>google.script.run.withSuccessHandler(result=>{
+   if(result.requiresDuplicateConfirmation){
+     if(!confirm(result.message+'\\n기존 이용권: '+result.duplicates.map(x=>x.passId).join(', ')+'\\n추가 등록하시겠습니까?')){btn.disabled=false;show('중복 등록을 취소했습니다.');return;}
+     submitPass({...payload,confirmDuplicate:true});return;
+   }
+   btn.disabled=false;show('완료\\n'+JSON.stringify(result,null,2));
+ }).withFailureHandler(err=>{btn.disabled=false;show('등록 실패: '+(err.message||err),true);}).mdRegisterPass(payload);
+ submitPass(data);
 };
 $('#passRefresh').onclick=()=>{
  const dogId=$('#passForm input[name="dogId"]').value.trim();
@@ -70,7 +78,18 @@ $('#passRefresh').onclick=()=>{
    const div=document.createElement('div');div.style.cssText='padding:14px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc';
    const title=document.createElement('strong');title.textContent=x.productName+' · 잔여 '+x.remainingCount+' / '+x.totalCount+'회';
    const info=document.createElement('p');info.className='hint';info.textContent=x.passId+' · '+x.paymentStatus+' · '+(x.status||'사용 대기')+' · 기간 '+(x.startDate||'미정')+' ~ '+(x.expiryDate||'미정');
-   div.append(title,info);el.appendChild(div);
+   div.append(title,info);
+   if(x.paymentStatus==='미결제' && x.status==='사용 대기'){
+     const paid=document.createElement('button');paid.type='button';paid.className='action';paid.textContent='입금 확인 후 결제 완료';
+     paid.onclick=()=>{
+       if(!confirm('실제 입금을 확인했습니까?\\n이용권 '+x.passId+'을 결제 완료로 변경합니다. (회계 매출은 자동 기록되지 않습니다.)'))return;
+       paid.disabled=true;show('결제상태 변경 중...');
+       google.script.run.withSuccessHandler(result=>{paid.disabled=false;show('완료\\n'+JSON.stringify(result,null,2));$('#passRefresh').click();})
+         .withFailureHandler(err=>{paid.disabled=false;show('변경 실패: '+(err.message||err),true);}).mdMarkPassPaid(x.passId,true);
+     };
+     div.appendChild(paid);
+   }
+   el.appendChild(div);
   });
  });
 };
