@@ -1,0 +1,18 @@
+name: Settlement integration tests
+on:
+  push:
+    paths:
+      - 'src/Settlement*.js'
+      - 'tests/settlement.integration.test.js'
+      - '.github/workflows/settlement-tests.yml'
+  workflow_dispatch:
+jobs:
+  settlement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test isolated settlement functions
+        run: node tests/settlement.integration.test.js
