@@ -133,6 +133,17 @@ $('#passRefresh').onclick=()=>{
   rows.forEach(x=>{
    const div=document.createElement('div');div.style.cssText='padding:14px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc';
    const title=document.createElement('strong');title.textContent=x.productName+' · 잔여 '+x.remainingCount+' / '+x.totalCount+'회';
+   const state=document.createElement('span');state.style.cssText='display:inline-block;margin-left:9px;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:600;background:#e2e8f0;color:#334155';
+   const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'});
+   const expired=Boolean(x.expiryDate&&x.expiryDate<today),notStarted=Boolean(x.startDate&&x.startDate>today);
+   const stateText=x.paymentStatus!=='완료'?'미결제':expired?'기간 만료':notStarted?'시작 전':Number(x.remainingCount)===0?'소진':x.status||'사용 가능';
+   state.textContent=stateText;
+   if(stateText==='사용 가능'){state.style.background='#dcfce7';state.style.color='#166534';}
+   if(stateText==='기간 만료'||stateText==='소진'){state.style.background='#fee2e2';state.style.color='#991b1b';}
+   div.append(title,state);
+   const bar=document.createElement('div');bar.style.cssText='height:7px;background:#e2e8f0;border-radius:7px;overflow:hidden;margin:12px 0 6px';
+   const fill=document.createElement('div');fill.style.cssText='height:100%;background:#176b58;width:'+Math.max(0,Math.min(100,Number(x.remainingCount)/Math.max(1,Number(x.totalCount))*100))+'%';
+   bar.appendChild(fill);div.appendChild(bar);
    const info=document.createElement('p');info.className='hint';info.textContent=x.passId+' · '+x.paymentStatus+' · '+(x.status||'사용 대기')+' · 기간 '+(x.startDate||'미정')+' ~ '+(x.expiryDate||'미정');
    div.append(title,info);
    if(x.paymentStatus==='미결제' && x.status==='사용 대기'){
@@ -163,9 +174,25 @@ $('#passRefresh').onclick=()=>{
      div.appendChild(buttons);
 
    }
-   const history=document.createElement('button');history.type='button';history.className='action';history.textContent='사용 이력';
-     history.onclick=()=>gs('mdPassHistory',x.passId,rows=>{const list=document.createElement('div');list.className='hint';list.style.whiteSpace='pre-wrap';list.textContent=rows.length?rows.map(y=>y.at+' · '+y.type+' · '+y.bookingId+' · '+y.before+'→'+y.after+'회'+(y.reason?' · '+y.reason:'')).join('\\n'):'변동 이력이 없습니다.';const old=div.querySelector('.pass-history');if(old)old.remove();list.classList.add('pass-history');div.appendChild(list);});
-     div.appendChild(history);
+   const history=document.createElement('button');history.type='button';history.className='action';history.textContent='사용·복구 이력 보기';
+   history.onclick=()=>{
+     const old=div.querySelector('.pass-history');
+     if(old){old.remove();history.textContent='사용·복구 이력 보기';return;}
+     history.disabled=true;
+     google.script.run.withSuccessHandler(rows=>{
+       history.disabled=false;history.textContent='이력 닫기';
+       const list=document.createElement('div');list.className='pass-history';list.style.cssText='display:grid;gap:6px;margin-top:12px';
+       if(!rows.length){list.textContent='변동 이력이 없습니다.';}
+       rows.forEach(y=>{
+         const item=document.createElement('div');item.style.cssText='padding:9px 11px;border-left:3px solid '+(y.type==='차감'?'#d97706':'#176b58')+';background:white;font-size:13px';
+         const label=document.createElement('strong');label.textContent=y.type==='차감'?'1회 사용':'1회 복구';
+         const detail=document.createElement('div');detail.textContent=y.at+' · 예약 '+y.bookingId+' · 잔여 '+y.before+' → '+y.after+'회'+(y.reason?' · 사유: '+y.reason:'');
+         item.append(label,detail);list.appendChild(item);
+       });
+       div.appendChild(list);
+     }).withFailureHandler(err=>{history.disabled=false;show('이력 조회 실패: '+(err.message||err),true);}).mdPassHistory(x.passId);
+   };
+   div.appendChild(history);
    el.appendChild(div);
   });
  });
