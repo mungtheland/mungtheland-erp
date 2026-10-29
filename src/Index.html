@@ -186,10 +186,11 @@ $('#accountForm').onsubmit=e=>{
 $('#settlementPreviewBtn').onclick=()=>{
  const month=$('#accountMonth').value,reserve=$('#settlementReserve').value;
  const out=$('#settlementPreviewResult');out.textContent='계산 중...';
- gs('mdSettlementPreview',{month,reserve},d=>{
+ if(!month){out.textContent='정산월을 선택하세요.';return;}
+ google.script.run.withSuccessHandler(d=>{
   const fmt=n=>Number(n).toLocaleString()+'원';
   out.textContent='정산월 '+d.month+'\\n매출 '+fmt(d.sales)+' / 비용 '+fmt(d.costs)+' / 월 영업차액 '+fmt(d.monthProfit)+'\\n장부상 누적 현금잔액 '+fmt(d.cashBalance)+' / 유보금 '+fmt(d.reserve)+'\\n배분 가능 참고금액 '+fmt(d.distributable)+'\\n운영자 A (50%) '+fmt(d.owners['운영자 A'])+'\\n운영자 B (50%) '+fmt(d.owners['운영자 B'])+'\\n\\n'+d.warning;
- });
+ }).withFailureHandler(err=>{out.textContent='정산 계산 실패: '+(err.message||err);show(out.textContent,true);}).mdSettlementPreview({month,reserve});
 };
 $('#accountRefresh').onclick=()=>{
  $('#accountSummary').textContent='조회 중...';
