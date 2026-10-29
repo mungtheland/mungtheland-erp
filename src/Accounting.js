@@ -19,11 +19,18 @@ function mdAddAccountingEntry(data){
   const amount=Number(data.amount);
   if(!Number.isSafeInteger(amount)||amount<=0)throw Error('금액은 1원 이상의 정수여야 합니다.');
   const method=mdRequired_(data.paymentMethod,'결제수단');
+  const requestId=mdRequired_(data.requestId,'등록 요청 ID');
   const lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     mdCheckSetup();
+    const sheet=mdSheet_('회계관리');
+    if(sheet.getLastRow()>1){
+      const rows=sheet.getRange(2,1,sheet.getLastRow()-1,12).getDisplayValues();
+      const previous=rows.find(r=>String(r[11]).includes('[REQ:'+requestId+']'));
+      if(previous)return {transactionId:previous[0],alreadyRecorded:true,type:previous[2],amount:Number(previous[6])||Number(previous[7]),date:previous[1],status:previous[9]};
+    }
     const id=mdId_('TXN'),income=['매출','출자금'].includes(type)?amount:0,expense=['지출','인출금'].includes(type)?amount:0;
-    mdAppend_('회계관리',{'거래 ID':id,'거래일':date,'거래유형':type,'거래분류':category,'관련 ID':String(data.relatedId||'').trim(),'거래내용':description,'입금액':income,'출금액':expense,'결제수단':method,'거래상태':'확정','처리자':Session.getEffectiveUser().getEmail()||'운영자','비고':String(data.notes||'').trim()});
+    mdAppend_('회계관리',{'거래 ID':id,'거래일':date,'거래유형':type,'거래분류':category,'관련 ID':String(data.relatedId||'').trim(),'거래내용':description,'입금액':income,'출금액':expense,'결제수단':method,'거래상태':'확정','처리자':Session.getEffectiveUser().getEmail()||'운영자','비고':String(data.notes||'').trim()+' [REQ:'+requestId+']'});
     return {transactionId:id,type,amount,date,status:'확정',automatic:false};
   }finally{lock.releaseLock();}
 }
