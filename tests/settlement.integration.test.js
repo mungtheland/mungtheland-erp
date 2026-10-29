@@ -13,6 +13,7 @@ const ctx={console,Number,String,Error,Date,Math,JSON,RegExp,
 };
 vm.createContext(ctx);
 for(const f of ['src/SettlementV4.js','src/SettlementPayment.js','src/SettlementRepair.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
+ctx.mdSettlementSnapshot_=()=> 'snapshot';
 settlements.push(['SET-1','2026-09',new Date(),'tester',0,100000,0,100000,70000,35000,35000,0,0,'확정','snapshot','test','','']);
 const data={month:'2026-09',owner:'운영자 A',date:'2026-10-29',amount:10000,requestId:'REQ-12345678'};
 const first=ctx.mdSettlementPayment(data);
