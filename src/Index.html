@@ -161,10 +161,11 @@ $('#passRefresh').onclick=()=>{
        buttons.appendChild(btn);
      }
      div.appendChild(buttons);
-     const history=document.createElement('button');history.type='button';history.className='action';history.textContent='사용 이력';
+
+   }
+   const history=document.createElement('button');history.type='button';history.className='action';history.textContent='사용 이력';
      history.onclick=()=>gs('mdPassHistory',x.passId,rows=>{const list=document.createElement('div');list.className='hint';list.style.whiteSpace='pre-wrap';list.textContent=rows.length?rows.map(y=>y.at+' · '+y.type+' · '+y.bookingId+' · '+y.before+'→'+y.after+'회'+(y.reason?' · '+y.reason:'')).join('\\n'):'변동 이력이 없습니다.';const old=div.querySelector('.pass-history');if(old)old.remove();list.classList.add('pass-history');div.appendChild(list);});
      div.appendChild(history);
-   }
    el.appendChild(div);
   });
  });
@@ -190,7 +191,8 @@ $('#settlementStatusBtn').onclick=()=>{
 $('#settlementConfirmBtn').onclick=()=>{
  const month=$('#accountMonth').value,reserve=$('#settlementReserve').value,note=$('#settlementNote').value.trim();
  if(note.length<3){show('확정 메모는 3자 이상 입력하세요.',true);return;}
- if(!/^\\d{4}-\\d{2}$/.test(month)||!Number.isSafeInteger(Number(reserve))||Number(reserve)<0){show('정산월과 유보금을 확인하세요.',true);return;}\n if(!confirm('정산월: '+month+'\\n유보금: '+Number(reserve).toLocaleString()+'원\\n확정 메모: '+note+'\\n\\n이 월의 정산은 중복 확정할 수 없습니다. 실제 지급은 발생하지 않습니다. 확정하시겠습니까?'))return;
+ if(!/^\\d{4}-\\d{2}$/.test(month)||!Number.isSafeInteger(Number(reserve))||Number(reserve)<0){show('정산월과 유보금을 확인하세요.',true);return;}
+ if(!confirm('정산월: '+month+'\\n유보금: '+Number(reserve).toLocaleString()+'원\\n확정 메모: '+note+'\\n\\n이 월의 정산은 중복 확정할 수 없습니다. 실제 지급은 발생하지 않습니다. 확정하시겠습니까?'))return;
  const btn=$('#settlementConfirmBtn');btn.disabled=true;
  google.script.run.withSuccessHandler(d=>{btn.disabled=false;show('정산 확정 결과 '+JSON.stringify(d));$('#settlementStatusBtn').click();}).withFailureHandler(e=>{btn.disabled=false;show('정산 확정 실패: '+e.message+' / 재시도 전에 확정 이력을 조회하세요.',true);}).mdConfirmSettlement({month,reserve,note});
 };
