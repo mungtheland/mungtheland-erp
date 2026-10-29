@@ -35,6 +35,9 @@ function mdRegisterPass(data){
     mdCheckSetup();
     const dogs=mdSheet_('고객·반려견관리');
     if(mdFindById_(dogs,dogId)<0)throw Error('등록되지 않은 반려견 ID입니다.');
+    const existing=mdListPasses(dogId).filter(p=>p.productName===product&&p.startDate===start&&p.expiryDate===end&&p.status!=='취소'&&p.paymentStatus!=='환불');
+    if(existing.length && data.confirmDuplicate!==true)
+      return {requiresDuplicateConfirmation:true,duplicates:existing.map(p=>({passId:p.passId,productName:p.productName,startDate:p.startDate,expiryDate:p.expiryDate,paymentStatus:p.paymentStatus})),message:'동일 상품·기간 이용권이 이미 있습니다. 추가 구매가 맞는지 확인하세요.'};
     const passId=mdId_('PASS');
     mdAppend_('이용권관리',{
       '이용권 ID':passId,'반려견 ID':dogId,'상품 ID':'',
@@ -61,4 +64,24 @@ function mdListPasses(dogId){
       discount:Number(String(r[11]).replace(/,/g,''))||0,
       paymentAmount:Number(String(r[12]).replace(/,/g,''))||0,
       paymentStatus:r[13],status:r[14]}));
+}
+
+/** 수납 확인 후 결제상태 변경. 결제·매출 자동 기록은 별도 회계 연동 전까지 없음. */
+function mdMarkPassPaid(passId,confirmed){
+  passId=mdRequired_(passId,'이용권 ID');
+  if(confirmed!==true)throw Error('실제 입금 확인이 필요합니다.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    mdCheckSetup();
+    const sheet=mdSheet_('이용권관리'),row=mdFindById_(sheet,passId);
+    if(row<2)throw Error('이용권을 찾을 수 없습니다.');
+    const values=sheet.getRange(row,1,1,15).getDisplayValues()[0];
+    const payment=values[13],status=values[14];
+    if(payment==='완료')return {passId,paymentStatus:'완료',status,alreadyPaid:true,accountingRecorded:false};
+    if(payment!=='미결제')throw Error('미결제 이용권만 결제 완료 처리할 수 있습니다.');
+    if(status==='취소'||status==='소진'||status==='만료')throw Error('현재 이용권 상태에서는 결제 완료 처리가 불가합니다.');
+    sheet.getRange(row,14,1,2).setValues([['완료','사용 가능']]);
+    SpreadsheetApp.flush();
+    return {passId,paymentStatus:'완료',status:'사용 가능',alreadyPaid:false,accountingRecorded:false};
+  }finally{lock.releaseLock();}
 }
