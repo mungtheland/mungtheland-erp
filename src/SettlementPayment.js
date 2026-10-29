@@ -25,7 +25,9 @@ function mdSettlementPayment(data) {
     const ledger=mdSheet_('회계관리');
     const ledgerRows=ledger.getLastRow()<2?[]:ledger.getRange(2,1,ledger.getLastRow()-1,12).getDisplayValues();
     if(ledgerRows.some(x=>String(x[11]).includes('[REQ:'+requestId+']')))throw Error('회계 원장에 이미 기록된 지급 요청입니다. 정산 이력 확인 필요');
-    if(String(r[14])!==mdSettlementSnapshot_(month))throw Error('정산 후 원장이 변경되었습니다. 검토가 필요합니다.');
+    const reconciliation=mdSettlementStatus(month);
+    if(reconciliation.inconsistent)throw Error('지급 이력과 회계 원장이 불일치합니다. 지급을 중단합니다.');
+    if(reconciliation.changed)throw Error('정산 후 원장이 변경되었습니다. 검토가 필요합니다.');
     const remaining=Number(r[owner==='운영자 A'?9:10])-Number(r[paidCol-1]||0);
     if(amount>remaining)throw Error('미지급 잔액 초과');
     const currentCash=mdSettlementPreview({month,reserve:0}).cashBalance;
@@ -34,7 +36,7 @@ function mdSettlementPayment(data) {
     mdAppend_('회계관리',{'거래 ID':transactionId,'거래일':date,'거래유형':'인출금','거래분류':'이익배분','관련 ID':String(r[0]),'거래내용':month+' '+owner+' 정산 지급','입금액':0,'출금액':amount,'결제수단':'계좌이체','거래상태':'확정','처리자':Session.getEffectiveUser().getEmail()||'운영자','비고':'[OWNER:'+owner+'] [REQ:'+requestId+']'});
     sheet.getRange(row,historyCol).setValue(history+' [REQ:'+requestId+'] '+transactionId);
     sheet.getRange(row,paidCol).setValue(Number(r[paidCol-1]||0)+amount);
-    sheet.getRange(row,15).setValue(mdSettlementSnapshot_(month));
+    // 확정 당시의 원장 서명은 변경하지 않는다.
     const paid=Number(sheet.getRange(row,12).getValue())+Number(sheet.getRange(row,13).getValue());
     sheet.getRange(row,14).setValue(paid>=Number(r[8])?'지급 완료':'일부 지급');
     return {transactionId,remaining:remaining-amount,amount,owner};
