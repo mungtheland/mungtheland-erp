@@ -12,10 +12,10 @@ function mdSettlementStatus(month){
  if(!r)return {month,exists:false};
  const paidA=Number(r[11])||0,paidB=Number(r[12])||0;
  const ledger=mdSheet_('회계관리'),n=ledger.getLastRow();
- const transactions=n<2?[]:ledger.getRange(2,1,n-1,12).getDisplayValues().filter(x=>x[4]===String(r[0])&&x[2]==='인출금'&&x[3]==='이익배분'&&x[9]==='확정');
+ const transactions=n<2?[]:ledger.getRange(2,1,n-1,12).getValues().filter(x=>x[4]===String(r[0])&&x[2]==='인출금'&&x[3]==='이익배분'&&x[9]==='확정');
  const ledgerA=transactions.filter(x=>String(x[11]).includes('[OWNER:운영자 A]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
  const ledgerB=transactions.filter(x=>String(x[11]).includes('[OWNER:운영자 B]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
- const inconsistent=ledgerA!==paidA||ledgerB!==paidB;
+ const inconsistent=ledgerA!==paidA||ledgerB!==paidB||!Number.isSafeInteger(ledgerA)||!Number.isSafeInteger(ledgerB);
  return {month,exists:true,id:String(r[0]),total:Number(r[8]),a:Number(r[9]),b:Number(r[10]),paidA,paidB,remainingA:Number(r[9])-paidA,remainingB:Number(r[10])-paidB,changed:String(r[14])!==mdSettlementSnapshot_(month),inconsistent,ledgerA,ledgerB,needsReview:inconsistent||String(r[14])!==mdSettlementSnapshot_(month),status:String(r[13])};
 }
 function mdConfirmSettlement(data){
