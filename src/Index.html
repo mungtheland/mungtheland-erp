@@ -176,7 +176,11 @@ $('#accountMonth').value=dateInput.value.slice(0,7);
 $('#accountForm').onsubmit=e=>{
  e.preventDefault();const data=values(e.target),btn=e.submitter;
  if(!confirm(data.type+' '+Number(data.amount).toLocaleString()+'원을 실제 거래 내역으로 기록할까요?'))return;
- call('mdAddAccountingEntry',data,btn);
+ btn.disabled=true;show('거래 기록 중...');
+ const requestId='REQ-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+ google.script.run.withSuccessHandler(result=>{btn.disabled=false;show('완료\\n'+JSON.stringify(result,null,2));e.target.reset();$('#accountForm input[name="date"]').value=dateInput.value;$('#accountRefresh').click();})
+ .withFailureHandler(err=>{btn.disabled=false;show('등록 실패: '+(err.message||err),true);})
+ .mdAddAccountingEntry({...data,requestId});
 };
 $('#accountRefresh').onclick=()=>{
  $('#accountSummary').textContent='조회 중...';
