@@ -41,7 +41,7 @@ function mdRegisterPass(data){
       '상품명':product,'구매일':new Date(),'총 횟수':count,
       '사용 횟수':0,'잔여 횟수':count,'시작일':start,'만료일':end,
       '판매금액':price,'할인금액':discount,'결제금액':price-discount,
-      '결제상태':paid?'완료':'미결제','이용권상태':paid?'사용 가능':''
+      '결제상태':paid?'완료':'미결제','이용권상태':paid?'사용 가능':'사용 대기'
     });
     return {passId:passId,dogId:dogId,totalCount:count,remainingCount:count,
       paymentStatus:paid?'완료':'미결제',automaticDeduction:false,
