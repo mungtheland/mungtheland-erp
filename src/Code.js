@@ -72,7 +72,7 @@ function mdRegisterDog(data){
       '성별':data.sex||'','중성화':data.neutered||'','체중(kg)':data.weight||'',
       '접종정보':data.vaccines||'','건강·알레르기':data.health||'',
       '성향·주의사항':data.notes||'','비상연락처':data.emergencyPhone||'',
-      '등록일':new Date(),'상태':'등록'
+      '등록일':new Date(),'상태':'이용 중'
     });
     return {dogId:dogId,customerId:customerId};
   }finally{lock.releaseLock();}
