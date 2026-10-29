@@ -98,7 +98,7 @@ $('#passDogSearch').addEventListener('input',()=>{
  if(!q){$('#passDogSelect').innerHTML='<option value="">반려견을 검색하세요</option>';return;}
  gs('mdListDogs',q,rows=>{
    if(seq!==passSearchSeq)return;
-   $('#passDogSelect').innerHTML='<option value="">반려견 선택</option>'+rows.map(x=>'<option value="'+esc(x.dogId)+'">'+esc(x.dogName)+' · '+esc(x.guardianName)+'</option>').join('');
+   $('#passDogSelect').innerHTML='<option value="">'+(rows.length?'반려견 선택':'검색 결과 없음 · 반려견 등록 탭에서 먼저 등록')+'</option>'+rows.map(x=>'<option value="'+esc(x.dogId)+'">'+esc(x.dogName)+' · '+esc(x.guardianName)+'</option>').join('');
  });
 });
 $('#passDogSelect').onchange=e=>{
@@ -129,7 +129,7 @@ $('#passRefresh').onclick=()=>{
  loadBookingChoices(dogId,'#adjustBookingSelect',true);
  gs('mdListPasses',dogId,rows=>{
   const el=$('#passRows');el.replaceChildren();
-  if(!rows.length){el.textContent='등록된 이용권이 없습니다.';return;}
+  if(!rows.length){el.textContent='선택한 반려견의 등록된 이용권이 없습니다. 위의 이용권 등록 양식에서 먼저 발급하세요.';return;}
   rows.forEach(x=>{
    const div=document.createElement('div');div.style.cssText='padding:14px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc';
    const title=document.createElement('strong');title.textContent=x.productName+' · 잔여 '+x.remainingCount+' / '+x.totalCount+'회';
