@@ -21,7 +21,11 @@ function mdSettlementPayment(data) {
     const paidCol=owner==='운영자 A'?12:13;
     const historyCol=owner==='운영자 A'?17:18;
     const history=String(r[historyCol-1]||'');
-    if(history.includes('[REQ:'+requestId+']'))return {alreadyRecorded:true};
+    if(history.includes('[REQ:'+requestId+']')){
+      const status=mdSettlementStatus(month);
+      if(status.inconsistent||status.changed)throw Error('기존 지급 요청의 정산 기록이 불일치합니다. 복구 검토가 필요합니다.');
+      return {alreadyRecorded:true};
+    }
     const ledger=mdSheet_('회계관리');
     const ledgerRows=ledger.getLastRow()<2?[]:ledger.getRange(2,1,ledger.getLastRow()-1,12).getDisplayValues();
     if(ledgerRows.some(x=>String(x[11]).includes('[REQ:'+requestId+']')))throw Error('회계 원장에 이미 기록된 지급 요청입니다. 정산 이력 확인 필요');
