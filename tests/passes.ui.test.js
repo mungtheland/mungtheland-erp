@@ -37,6 +37,7 @@ assert.ok(el('#passRows').querySelector('.pass-history')===null);
 const historyButton=[...el('#passRows').querySelectorAll('button')].find(b=>b.textContent.includes('이력'));
 assert.ok(historyButton);
 historyButton.click();
+if(!document.querySelector('#passRows .pass-history')) console.error('UI HISTORY DEBUG',JSON.stringify({calls,errors,status:el('#status').textContent,button:historyButton.textContent,html:el('#passRows').innerHTML.slice(-1400)}));
 assert.match(el('#passRows .pass-history').textContent,/RSV-UI/);
 assert.match(el('#passRows .pass-history').textContent,/3 → 2회/);
 historyButton.click();
