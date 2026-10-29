@@ -34,8 +34,12 @@ function mdSettlementPayment(data) {
     if(reconciliation.changed)throw Error('정산 후 원장이 변경되었습니다. 검토가 필요합니다.');
     const remaining=Number(r[owner==='운영자 A'?9:10])-Number(r[paidCol-1]||0);
     if(amount>remaining)throw Error('미지급 잔액 초과');
-    const currentCash=mdSettlementPreview({month,reserve:0}).cashBalance;
-    if(currentCash<amount)throw Error('장부상 현금잔액이 지급액보다 적습니다.');
+    // Include all confirmed transactions up to the actual payment date, not just settlement month.
+    const cashRows=ledgerRows.length?ledger.getRange(2,1,ledger.getLastRow()-1,12).getValues():[];
+    const toDate=v=>v instanceof Date?Utilities.formatDate(v,'Asia/Seoul','yyyy-MM-dd'):String(v||'').slice(0,10);
+    const cash=cashRows.filter(x=>x[0]&&String(x[9])==='확정'&&toDate(x[1])<=date).reduce((sum,x)=>sum+Number(x[6]||0)-Number(x[7]||0),0);
+    const reserved=Number(r[4]||0);
+    if(!Number.isSafeInteger(cash)||!Number.isSafeInteger(reserved)||cash-reserved<amount)throw Error('송금일 기준 장부상 현금에서 유보금을 제외한 잔액이 부족합니다.');
     const transactionId=mdId_('TXN');
     mdAppend_('회계관리',{'거래 ID':transactionId,'거래일':date,'거래유형':'인출금','거래분류':'이익배분','관련 ID':String(r[0]),'거래내용':month+' '+owner+' 정산 지급','입금액':0,'출금액':amount,'결제수단':'계좌이체','거래상태':'확정','처리자':Session.getEffectiveUser().getEmail()||'운영자','비고':'[OWNER:'+owner+'] [REQ:'+requestId+']'});
     sheet.getRange(row,historyCol).setValue(history+' [REQ:'+requestId+'] '+transactionId);
