@@ -25,7 +25,7 @@ function refreshToday(){
   gs('mdDashboardData',dateInput.value,data=>{
     $('#todaySummary').textContent='전체 '+data.total+'건 · 미등원 '+data.notArrived+'건 · 등원 중 '+data.checkedIn+'건 · 하원 '+data.checkedOut+'건';
     const target=$('#todayRows');target.replaceChildren();
-    data.bookings.forEach(x=>{
+    gs('mdTodayBookingCards',dateInput.value,bookings=>{\n    bookings.forEach(x=>{
       const div=document.createElement('div');div.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:13px;background:#f8fafc';
       const heading=document.createElement('div');heading.textContent=x.dogName+' · '+x.attendance+' · '+x.bookingId;heading.style.fontWeight='600';div.appendChild(heading);
       const detail=document.createElement('div');detail.className='hint';detail.textContent='등원 '+(x.checkIn||'-')+' / 하원 '+(x.checkOut||'-');div.appendChild(detail);
@@ -58,7 +58,7 @@ function refreshToday(){
       }
       target.appendChild(div);
     });
-    if(!data.bookings.length)target.textContent='조회된 예약이 없습니다.';
+    if(!bookings.length)target.textContent='조회된 예약이 없습니다.';\n    });
   });
 }
 $('#refreshToday').onclick=refreshToday;
