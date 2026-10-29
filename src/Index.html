@@ -190,18 +190,18 @@ $('#settlementStatusBtn').onclick=()=>{
 $('#settlementConfirmBtn').onclick=()=>{
  const month=$('#accountMonth').value,reserve=$('#settlementReserve').value,note=$('#settlementNote').value.trim();
  if(note.length<3){show('확정 메모는 3자 이상 입력하세요.',true);return;}
- if(!confirm(month+' 정산을 확정하시겠습니까? 실제 지급은 발생하지 않습니다.'))return;
+ if(!/^\\d{4}-\\d{2}$/.test(month)||!Number.isSafeInteger(Number(reserve))||Number(reserve)<0){show('정산월과 유보금을 확인하세요.',true);return;}\n if(!confirm('정산월: '+month+'\\n유보금: '+Number(reserve).toLocaleString()+'원\\n확정 메모: '+note+'\\n\\n이 월의 정산은 중복 확정할 수 없습니다. 실제 지급은 발생하지 않습니다. 확정하시겠습니까?'))return;
  const btn=$('#settlementConfirmBtn');btn.disabled=true;
- google.script.run.withSuccessHandler(d=>{btn.disabled=false;show('정산 확정 결과 '+JSON.stringify(d));$('#settlementStatusBtn').click();}).withFailureHandler(e=>{btn.disabled=false;show('정산 확정 실패: '+e.message,true);}).mdConfirmSettlement({month,reserve,note});
+ google.script.run.withSuccessHandler(d=>{btn.disabled=false;show('정산 확정 결과 '+JSON.stringify(d));$('#settlementStatusBtn').click();}).withFailureHandler(e=>{btn.disabled=false;show('정산 확정 실패: '+e.message+' / 재시도 전에 확정 이력을 조회하세요.',true);}).mdConfirmSettlement({month,reserve,note});
 };
 $('#settlementPayDate').value=dateInput.value;
 $('#settlementPayBtn').onclick=()=>{
  const month=$('#accountMonth').value,owner=$('#settlementPayOwner').value,date=$('#settlementPayDate').value,amount=Number($('#settlementPayAmount').value);
  if(!month||!date||!Number.isSafeInteger(amount)||amount<=0){show('송금일과 지급액을 확인하세요.',true);return;}
- if(!confirm(owner+'에게 '+amount.toLocaleString()+'원을 이미 송금했습니까? 실제 송금한 내역만 기록합니다.'))return;
+ if(!confirm('실제 송금 사실을 확인하세요.\\n\\n정산월: '+month+'\\n지급 대상: '+owner+'\\n송금일: '+date+'\\n금액: '+amount.toLocaleString()+'원\\n\\n이 작업은 회계 원장에 인출금으로 기록됩니다. 실제 은행 송금을 완료한 경우에만 확인을 누르세요.'))return;
  const btn=$('#settlementPayBtn');btn.disabled=true;
  const requestId='REQ-'+Date.now()+'-'+Math.random().toString(36).slice(2);
- google.script.run.withSuccessHandler(d=>{btn.disabled=false;show('송금 내역 기록 완료 '+JSON.stringify(d));$('#settlementStatusBtn').click();$('#accountRefresh').click();}).withFailureHandler(e=>{btn.disabled=false;show('송금 기록 실패: '+e.message,true);}).mdSettlementPayment({month,owner,date,amount,requestId});
+ google.script.run.withSuccessHandler(d=>{btn.disabled=false;show('송금 내역 기록 완료 '+JSON.stringify(d));$('#settlementStatusBtn').click();$('#accountRefresh').click();}).withFailureHandler(e=>{btn.disabled=false;show('송금 기록 실패: '+e.message+' / 원장 기록이 일부 저장됐을 수 있습니다. 다시 누르지 말고 확정 이력과 회계 원장을 확인하세요.',true);}).mdSettlementPayment({month,owner,date,amount,requestId});
 };
 $('#settlementPreviewBtn').onclick=()=>{
  const month=$('#accountMonth').value,reserve=$('#settlementReserve').value;
