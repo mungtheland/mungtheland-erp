@@ -50,6 +50,7 @@ function mdCancelAccountingEntry(data){
     if(row<2)throw Error('거래를 찾을 수 없습니다.');
     const values=sheet.getRange(row,1,1,12).getValues()[0];
     if(values[9]==='취소')return {transactionId:id,alreadyCancelled:true};
+    if(String(values[3])==='이익배분'&&String(values[4]).startsWith('SET-'))throw Error('정산 지급 거래는 일반 취소할 수 없습니다. 정산 이력 대조 후 별도 정정이 필요합니다.');
     if(values[9]!=='확정')throw Error('확정 거래만 취소할 수 있습니다.');
     const stamp=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
     const operator=Session.getEffectiveUser().getEmail()||'운영자';
