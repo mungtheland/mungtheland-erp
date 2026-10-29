@@ -21,13 +21,15 @@ function mdRepairSettlementPayment(data){
   const amount=Number(tx[7]),paidCol=owner==='운영자 A'?12:13,historyCol=owner==='운영자 A'?17:18;
   if(!Number.isSafeInteger(amount)||amount<=0||Number(tx[6])!==0)throw Error('금액 오류');
   const history=String(r[historyCol-1]||'');
-  if(history.includes('[REQ:'+requestId+']'))return {alreadyReconciled:true};
+  const historyRecorded=history.includes('[REQ:'+requestId+']');
   const all=last<2?[]:ledger.getRange(2,1,last-1,12).getValues();
   const ownerTotal=all.filter(x=>String(x[4])===String(r[0])&&String(x[2])==='인출금'&&String(x[3])==='이익배분'&&String(x[9])==='확정'&&String(x[11]).includes('[OWNER:'+owner+']')).reduce((v,x)=>v+Number(x[7]||0),0);
   const paid=Number(r[paidCol-1]||0),limit=Number(r[owner==='운영자 A'?9:10]);
   if(ownerTotal>limit)throw Error('지급 한도 초과: 수동 검토 필요');
   if(ownerTotal!==paid&&ownerTotal!==paid+amount)throw Error('복수 불일치: 수동 검토 필요');
-  sh.getRange(row,historyCol).setValue(history+' [REQ:'+requestId+'] '+String(tx[0]));
+  if(historyRecorded&&ownerTotal===paid)return {alreadyReconciled:true};
+  if(!historyRecorded&&ownerTotal===paid)throw Error('지급 합계는 일치하나 요청 이력이 누락됨: 수동 검토 필요');
+  if(!historyRecorded)sh.getRange(row,historyCol).setValue(history+' [REQ:'+requestId+'] '+String(tx[0]));
   if(ownerTotal===paid+amount)sh.getRange(row,paidCol).setValue(ownerTotal);
   const a=Number(sh.getRange(row,12).getValue()),b=Number(sh.getRange(row,13).getValue());
   sh.getRange(row,14).setValue(a+b>=Number(r[8])?'지급 완료':'일부 지급');
