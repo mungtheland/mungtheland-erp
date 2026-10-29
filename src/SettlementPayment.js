@@ -6,8 +6,9 @@ function mdSettlementPayment(data) {
   const date=mdRequired_(data.date,'송금일');
   const requestId=mdRequired_(data.requestId,'요청 ID');
   const amount=Number(data.amount);
+  if(!/^REQ-[A-Za-z0-9-]{8,100}$/.test(requestId))throw Error('요청 ID 형식 오류');
   if(!['운영자 A','운영자 B'].includes(owner))throw Error('운영자 선택 오류');
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw Error('송금일 형식 오류');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('송금일 형식 오류');
   if(!Number.isSafeInteger(amount)||amount<=0)throw Error('금액 오류');
   const lock=LockService.getScriptLock();lock.waitLock(20000);
   try {
