@@ -16,7 +16,10 @@ function mdBookingAuditSheet_(){
 function mdBookingChangeHistory(bookingId){
   bookingId=mdRequired_(bookingId,'예약 ID');
   const book=mdBook_(),sheet=book.getSheetByName(MD_BOOKING_AUDIT_NAME);
-  if(!sheet||sheet.getLastRow()<2)return [];
+  if(!sheet)return [];
+  const headers=sheet.getRange(1,1,1,MD_BOOKING_AUDIT_HEADERS.length).getDisplayValues()[0];
+  if(MD_BOOKING_AUDIT_HEADERS.some((h,i)=>headers[i]!==h))throw Error('예약 변경 이력 시트의 헤더가 올바르지 않습니다.');
+  if(sheet.getLastRow()<2)return [];
   const rows=sheet.getRange(2,1,sheet.getLastRow()-1,MD_BOOKING_AUDIT_HEADERS.length).getDisplayValues();
   return rows.filter(r=>r[2]===bookingId).slice(-100).reverse().map(r=>({
     id:r[0],at:r[1],bookingId:r[2],dogId:r[3],action:r[4],
@@ -70,19 +73,27 @@ function mdChangeBooking(data){
 function mdCommitBookingChange_(sheet,row,column,value,previous,action,oldDate,newDate){
   const ledger=mdBookingAuditSheet_();
   const id=mdId_('BCH');
-  const operator=Session.getEffectiveUser().getEmail()||'운영자';
+  // 배포 실행 계정과 실제 조작자는 다를 수 있으므로 계정 식별을 확정하지 않는다.
+  const operator=Session.getActiveUser().getEmail()||'사용자 식별 불가';
   const entry=[id,new Date(),String(previous[0]),String(previous[2]),action,oldDate,newDate,String(previous[5]),action==='취소'?'예약취소':String(previous[5]),operator];
   const cell=sheet.getRange(row,column),oldValue=previous[column-1];
-  let appended=false;
+  let appended=false,mutationStarted=false;
   try{
     ledger.appendRow(entry);appended=true;
+    mutationStarted=true;
     cell.setValue(value);
     SpreadsheetApp.flush();
   }catch(error){
-    let failed=false;
-    try{cell.setValue(oldValue);if(appended){const n=ledger.getLastRow();if(ledger.getRange(n,1).getDisplayValue()===id)ledger.deleteRow(n);}SpreadsheetApp.flush();}
-    catch(rollback){failed=true;Logger.log('BOOKING CHANGE ROLLBACK FAILED '+rollback);}
-    if(failed)throw Error('예약 변경 및 복구 실패: 관리자에게 원장과 변경 이력 점검을 요청하세요. '+error.message);
+    if(!appended){throw error;}
+    // 실패한 쓰기의 실제 반영 여부를 확정할 수 없으므로 원장 복구 후 이력을 제거한다.
+    let rollbackError=null;
+    try{
+      if(mutationStarted){cell.setValue(oldValue);SpreadsheetApp.flush();}
+      const n=ledger.getLastRow();
+      if(ledger.getRange(n,1).getDisplayValue()===id){ledger.deleteRow(n);}
+      else throw Error('마지막 이력 ID가 일치하지 않습니다.');
+    }catch(rollback){rollbackError=rollback;Logger.log('BOOKING CHANGE ROLLBACK FAILED '+rollback);}
+    if(rollbackError)throw Error('예약 변경 및 복구 실패: 관리자에게 원장과 변경 이력 점검을 요청하세요. '+error.message);
     throw error;
   }
 }
