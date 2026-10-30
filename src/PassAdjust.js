@@ -16,6 +16,8 @@ function mdPassAdjust_(data){
     const b=bookingSheet.getRange(bRow,1,1,11).getValues()[0];
     const p=passSheet.getRange(pRow,1,1,15).getValues()[0];
     if(String(b[2])!==String(p[1]))throw Error('예약과 이용권의 반려견이 다릅니다.');
+    if(type==='차감'&&String(b[5])!=='예약')throw Error('예약상태가 예약인 경우에만 이용권을 차감할 수 있습니다.');
+    if(type==='차감'&&(!b[6]||b[8]!=='등원 중'&&b[8]!=='하원'))throw Error('정상적인 등원 기록과 출석상태가 필요합니다.');
     const total=Number(p[5]),used=Number(p[6]),remaining=Number(p[7]);
     if(!Number.isSafeInteger(total)||!Number.isSafeInteger(used)||!Number.isSafeInteger(remaining)||used<0||remaining<0||used+remaining!==total)throw Error('이용권 횟수 무결성 오류입니다.');
     const linked=String(b[4]||''),deduction=String(b[9]||'미차감');
