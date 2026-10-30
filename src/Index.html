@@ -29,10 +29,13 @@ function refreshToday(){
     bookings.forEach(x=>{
       const div=document.createElement('div');div.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:13px;background:#f8fafc';
       const heading=document.createElement('div');heading.textContent=x.dogName+' · '+x.attendance+' · '+x.bookingId;heading.style.fontWeight='600';div.appendChild(heading);
-      const detail=document.createElement('div');detail.className='hint';detail.textContent='등원 '+(x.checkIn||'-')+' / 하원 '+(x.checkOut||'-');div.appendChild(detail);
+      const detail=document.createElement('div');detail.className='hint';detail.textContent='등원 '+(x.checkIn||'-')+' / 하원 '+(x.checkOut||'-')+' · 이용권 '+(x.deduction||'미차감');div.appendChild(detail);
+      if(x.attendance==='등원 중'&&x.deduction!=='차감'){
+        const notice=document.createElement('p');notice.className='hint';notice.style.cssText='color:#92400e;font-weight:600;margin:8px 0';notice.textContent='이용권 미차감 · 하원 전 이용권 차감 여부를 확인하세요. 일일권 등 별도 결제 이용은 회계 기록을 확인하세요.';div.appendChild(notice);
+      }
       if(x.bookingStatus==='예약'&&(x.attendance==='미등원'||x.attendance==='등원 중')){
         const b=document.createElement('button');b.type='button';b.className='action';b.textContent=x.attendance==='미등원'?'등원 처리':'하원 처리';
-        b.onclick=()=>{if(!confirm(x.dogName+' '+b.textContent+'하시겠습니까?'))return;const fn=x.attendance==='미등원'?'mdCheckIn':'mdCheckOut';b.disabled=true;show('처리 중...');google.script.run.withSuccessHandler(result=>{b.disabled=false;show('완료: '+JSON.stringify(result));refreshToday();}).withFailureHandler(e=>{b.disabled=false;show('처리 실패: '+e.message,true);})[fn](x.bookingId);};
+        b.onclick=()=>{if(x.attendance==='등원 중'&&x.deduction!=='차감'&&!confirm('이 예약은 이용권이 차감되지 않았습니다. 일일권 결제 등 별도 처리 여부를 확인했나요?\n확인 후 하원 처리를 계속하시겠습니까?'))return;if(!confirm(x.dogName+' '+b.textContent+'하시겠습니까?'))return;const fn=x.attendance==='미등원'?'mdCheckIn':'mdCheckOut';b.disabled=true;show('처리 중...');google.script.run.withSuccessHandler(result=>{b.disabled=false;show('완료: '+JSON.stringify(result));refreshToday();}).withFailureHandler(e=>{b.disabled=false;show('처리 실패: '+e.message,true);})[fn](x.bookingId);};
         div.appendChild(b);
       }
       // 등원 후 동일 화면에서 이용권을 선택해 명시적으로 1회 차감한다.
