@@ -6,6 +6,10 @@ const sheet = { getRange: (r,c,h=1,w=1) => ({ getValues: () => [row.slice(c-1,c-
 const ctx = { Date, Error, String, Number, isNaN, JSON, LockService: { getScriptLock: () => ({waitLock(){},releaseLock(){}}) }, mdRequired_: v => String(v), mdSheet_: () => sheet, mdFindById_: () => 2 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('src/Code.js','utf8'),ctx);
+// Code.js declares its own helpers; replace them after loading with in-memory doubles.
+ctx.mdSheet_ = () => sheet;
+ctx.mdFindById_ = () => 2;
+ctx.mdRequired_ = v => String(v);
 assert.throws(() => ctx.mdCheckOut('R1'), /등원 기록/);
 assert.equal(ctx.mdCheckIn('R1').checkedIn,true);
 assert.equal(ctx.mdCheckIn('R1').alreadyCheckedIn,true);
