@@ -4,7 +4,7 @@ const sh={getLastRow:()=>rows.length,getRange:(r,c,h=1,w=1)=>({getValues:()=>row
 const audit=[['이력 ID','변경일시','예약 ID','반려견 ID','처리유형','변경 전 이용일','변경 후 이용일','변경 전 상태','변경 후 상태','처리자']];
 const auditSheet={getLastRow:()=>audit.length,getRange:(r,c,h=1,w=1)=>({getDisplayValues:()=>audit.slice(r-1,r-1+h).map(x=>x.slice(c-1,c-1+w).map(String))}),appendRow:r=>audit.push(r),deleteRow:r=>audit.splice(r-1,1),hideSheet(){}};
 const book={getSheetByName:name=>name==='_예약변경이력'?auditSheet:null};
-const ctx={Date,Number,String,Error,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Session:{getEffectiveUser:()=>({getEmail:()=> 'operator@example.test'})},SpreadsheetApp:{flush(){}},Logger:{log(){}},mdId_:()=> 'BCH-TEST-'+audit.length,mdBook_:()=>book,mdRequired_:v=>String(v),mdCheckSetup:()=>{},mdSheet_:()=>sh,mdFindById_:(_,id)=>rows.findIndex(r=>r[0]===id)+1};
+const ctx={Date,Number,String,Error,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Session:{getActiveUser:()=>({getEmail:()=> 'operator@example.test'})},SpreadsheetApp:{flush(){}},Logger:{log(){}},mdId_:()=> 'BCH-TEST-'+audit.length,mdBook_:()=>book,mdRequired_:v=>String(v),mdCheckSetup:()=>{},mdSheet_:()=>sh,mdFindById_:(_,id)=>rows.findIndex(r=>r[0]===id)+1};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('src/BookingChange.js','utf8'),ctx);
 const run=ctx.mdChangeBooking;
 assert.throws(()=>run({bookingId:'R1',action:'날짜변경',newDate:'2026-11-03'}),/이미 존재/);
@@ -18,4 +18,10 @@ assert.equal(audit[1][5],'2026-11-01');
 assert.equal(audit[1][6],'2026-11-02');
 assert.equal(audit[2][4],'취소');
 assert.equal(ctx.mdBookingChangeHistory('R1').length,2);
+// Failed ledger append must not mutate the booking record.
+const savedAppend=auditSheet.appendRow;
+auditSheet.appendRow=()=>{throw Error('audit unavailable')};
+assert.throws(()=>run({bookingId:'R2',action:'취소'}),/audit unavailable/);
+assert.equal(rows[2][5],'예약');
+auditSheet.appendRow=savedAppend;
 console.log('PASS booking changes and audit history');
