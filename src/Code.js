@@ -116,7 +116,12 @@ function mdCheckIn(bookingId){
     if(row<0)throw Error('예약을 찾을 수 없습니다.');
     const values=sheet.getRange(row,1,1,11).getValues()[0];
     if(values[5]!=='예약')throw Error('등원할 수 없는 예약상태: '+values[5]);
-    if(values[6])return {bookingId:bookingId,alreadyCheckedIn:true};
+    if(values[7])throw Error('이미 하원한 예약은 다시 등원 처리할 수 없습니다.');
+    if(values[6]){
+      if(values[8]!=='등원 중')throw Error('등원 기록과 출석상태가 일치하지 않습니다. 관리자 확인이 필요합니다.');
+      return {bookingId:bookingId,alreadyCheckedIn:true};
+    }
+    if(values[8]&&values[8]!=='미등원')throw Error('등원 전 출석상태가 올바르지 않습니다.');
     sheet.getRange(row,7).setValue(new Date());
     sheet.getRange(row,9).setValue('등원 중');
     return {bookingId:bookingId,checkedIn:true};
@@ -132,7 +137,11 @@ function mdCheckOut(bookingId){
     if(row<0)throw Error('예약을 찾을 수 없습니다.');
     const values=sheet.getRange(row,1,1,11).getValues()[0];
     if(!values[6])throw Error('등원 기록이 없습니다.');
-    if(values[7])return {bookingId:bookingId,alreadyCheckedOut:true};
+    if(values[7]){
+      if(values[8]!=='하원')throw Error('하원 기록과 출석상태가 일치하지 않습니다. 관리자 확인이 필요합니다.');
+      return {bookingId:bookingId,alreadyCheckedOut:true};
+    }
+    if(values[5]!=='예약'||values[8]!=='등원 중')throw Error('하원할 수 없는 예약 또는 출석상태입니다.');
     sheet.getRange(row,8).setValue(new Date());
     sheet.getRange(row,9).setValue('하원');
     return {bookingId:bookingId,checkedOut:true};
