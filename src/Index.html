@@ -50,6 +50,23 @@ function refreshBookingManage(){
     }
     move.onclick=()=>submit('날짜변경');cancel.onclick=()=>submit('취소');
    }else{const note=document.createElement('p');note.className='hint';note.textContent='등원·차감·이용권 연결 상태에 따라 변경할 수 없는 예약입니다.';card.appendChild(note);}
+   const historyButton=document.createElement('button');historyButton.type='button';historyButton.className='action';historyButton.textContent='변경 이력 보기';historyButton.style.marginTop='8px';card.appendChild(historyButton);
+   const historyArea=document.createElement('div');historyArea.className='hint';historyArea.hidden=true;historyArea.style.marginTop='8px';card.appendChild(historyArea);
+   historyButton.onclick=()=>{
+    if(!historyArea.hidden){historyArea.hidden=true;historyButton.textContent='변경 이력 보기';return;}
+    historyButton.disabled=true;historyArea.hidden=false;historyArea.textContent='변경 이력을 불러오는 중...';
+    google.script.run.withSuccessHandler(entries=>{
+     historyButton.disabled=false;historyButton.textContent='변경 이력 닫기';historyArea.replaceChildren();
+     if(!entries||!entries.length){historyArea.textContent='변경 이력이 없습니다.';return;}
+     entries.forEach(e=>{
+      const line=document.createElement('p');line.style.margin='6px 0';
+      line.textContent=e.at+' · '+e.action+' · '+(e.oldDate||'-')+' → '+(e.newDate||'취소')+' · '+(e.operator||'운영자');
+      historyArea.appendChild(line);
+     });
+    }).withFailureHandler(err=>{
+     historyButton.disabled=false;historyArea.textContent='변경 이력 조회 실패: '+(err.message||err);
+    }).mdBookingChangeHistory(x.bookingId);
+   };
    target.appendChild(card);
   });
  });
