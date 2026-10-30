@@ -1,7 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert').strict;
 const rows=[[],['R1','2026-11-01','D1','','','예약','','','미등원','미차감'],['R2','2026-11-03','D1','','','예약','','','미등원','미차감']];
 const sh={getLastRow:()=>rows.length,getRange:(r,c,h=1,w=1)=>({getValues:()=>rows.slice(r-1,r-1+h).map(x=>x.slice(c-1,c-1+w)),setValue:v=>{rows[r-1][c-1]=v}})};
-const ctx={Date,Number,String,Error,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},mdRequired_:v=>String(v),mdCheckSetup:()=>{},mdSheet_:()=>sh,mdFindById_:(_,id)=>rows.findIndex(r=>r[0]===id)+1};
+const audit=[['이력 ID','변경일시','예약 ID','반려견 ID','처리유형','변경 전 이용일','변경 후 이용일','변경 전 상태','변경 후 상태','처리자']];
+const auditSheet={getLastRow:()=>audit.length,getRange:(r,c,h=1,w=1)=>({getDisplayValues:()=>audit.slice(r-1,r-1+h).map(x=>x.slice(c-1,c-1+w).map(String))}),appendRow:r=>audit.push(r),deleteRow:r=>audit.splice(r-1,1),hideSheet(){}};
+const book={getSheetByName:name=>name==='_예약변경이력'?auditSheet:null};
+const ctx={Date,Number,String,Error,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Session:{getEffectiveUser:()=>({getEmail:()=> 'operator@example.test'})},SpreadsheetApp:{flush(){}},Logger:{log(){}},mdId_:()=> 'BCH-TEST-'+audit.length,mdBook_:()=>book,mdRequired_:v=>String(v),mdCheckSetup:()=>{},mdSheet_:()=>sh,mdFindById_:(_,id)=>rows.findIndex(r=>r[0]===id)+1};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('src/BookingChange.js','utf8'),ctx);
 const run=ctx.mdChangeBooking;
 assert.throws(()=>run({bookingId:'R1',action:'날짜변경',newDate:'2026-11-03'}),/이미 존재/);
@@ -9,4 +12,10 @@ assert.equal(run({bookingId:'R1',action:'날짜변경',newDate:'2026-11-02'}).ne
 rows[1][9]='차감';assert.throws(()=>run({bookingId:'R1',action:'취소'}),/미차감/);rows[1][9]='미차감';
 assert.equal(run({bookingId:'R1',action:'취소'}).status,'예약취소');
 assert.throws(()=>run({bookingId:'R1',action:'취소'}),/등원 전/);
-console.log('PASS booking changes');
+assert.equal(audit.length,3);
+assert.equal(audit[1][4],'날짜변경');
+assert.equal(audit[1][5],'2026-11-01');
+assert.equal(audit[1][6],'2026-11-02');
+assert.equal(audit[2][4],'취소');
+assert.equal(ctx.mdBookingChangeHistory('R1').length,2);
+console.log('PASS booking changes and audit history');
