@@ -32,5 +32,15 @@ const restored=context.mdRestorePass({bookingId:'RSV-TEST',passId:created.passId
 assert.equal(restored.remainingCount,3);
 assert.equal(context.mdPassHistory(created.passId).length,2);
 assert.equal(context.mdListPasses('DOG-TEST')[0].remainingCount,3);
+// Cancelled reservations must never consume a pass, even if a check-in timestamp exists.
+const booking=sheets.get('예약·등하원관리')[1];
+booking[5]='예약취소';
+assert.throws(()=>context.mdDeductPass({bookingId:'RSV-TEST',passId:created.passId}),/예약상태/);
+booking[5]='예약';
+booking[8]='미등원';
+assert.throws(()=>context.mdDeductPass({bookingId:'RSV-TEST',passId:created.passId}),/출석상태/);
+booking[8]='등원 중';
+assert.equal(context.mdDeductPass({bookingId:'RSV-TEST',passId:created.passId}).remainingCount,2);
+assert.equal(context.mdRestorePass({bookingId:'RSV-TEST',passId:created.passId,reason:'정상 복구'}).remainingCount,3);
 assert.equal(sheets.get('이용권관리').length,2);
 console.log('PASS: in-memory dog/pass/attendance/deduct/restore/history, production untouched');
