@@ -2,10 +2,12 @@ name: ERP isolated regression tests
 on:
   push:
     paths:
+      - 'src/Code.js'
       - 'src/Passes.js'
       - 'src/PassAdjust.js'
       - 'src/Index.html'
       - 'tests/passes.integration.test.js'
+      - 'tests/attendance.integration.test.js'
       - 'tests/passes.ui.test.js'
       - '.github/workflows/erp-tests.yml'
   workflow_dispatch:
@@ -29,6 +31,8 @@ jobs:
           NODE
       - name: Test pass lifecycle in memory only
         run: node tests/passes.integration.test.js
+      - name: Test attendance state transitions in memory
+        run: node tests/attendance.integration.test.js
       - name: Install isolated DOM test dependency
         run: npm install --no-save --no-package-lock jsdom@26
       - name: Test pass UI interactions with mocked Apps Script
