@@ -32,7 +32,7 @@ function refreshBookingManage(){
   rows.forEach(x=>{
    const card=document.createElement('div');card.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:12px';
    const heading=document.createElement('div');heading.textContent=x.date+' · '+x.dogName+' · '+x.bookingId;heading.style.fontWeight='600';card.appendChild(heading);
-   const eligible=x.bookingStatus==='예약'&&!x.checkedIn&&!x.checkedOut&&x.attendance==='미등원'&&x.deduction==='미차감';
+   const eligible=x.bookingStatus==='예약'&&!x.passLinked&&!x.checkedIn&&!x.checkedOut&&x.attendance==='미등원'&&x.deduction==='미차감';
    const detail=document.createElement('p');detail.className='hint';detail.textContent='상태 '+x.bookingStatus+' · '+x.attendance+' · 이용권 '+x.deduction;card.appendChild(detail);
    if(eligible){
     const date=document.createElement('input');date.type='date';date.value=x.date;date.setAttribute('aria-label',x.dogName+' 변경 이용일');card.appendChild(date);
