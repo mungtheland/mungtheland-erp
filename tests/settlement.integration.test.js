@@ -66,4 +66,42 @@ resetFixture();
 assert.equal(ctx.mdSettlementPayment(request('OWNERB01',5000,'운영자 B')).amount,5000);
 assert.equal(ctx.mdSettlementStatus('2026-09').paidB,5000);
 assert.equal(ctx.mdSettlementStatus('2026-09').inconsistent,false);
+
+// Corrupted payout ledger must never be repaired automatically.
+function partialFixture(id){
+ resetFixture();
+ ctx.mdSettlementPayment(request(id));
+ settlements[0][11]=0;
+ settlements[0][16]='';
+ return ledger[1];
+}
+function rejectedRepair(id,pattern){
+ const beforeLedger=JSON.stringify(ledger),beforeSettlement=JSON.stringify(settlements);
+ assert.throws(()=>ctx.mdRepairSettlementPayment({month:'2026-09',requestId:'REQ-'+id,confirm:true}),pattern);
+ assert.equal(JSON.stringify(ledger),beforeLedger,'rejected repair must not mutate ledger');
+ assert.equal(JSON.stringify(settlements),beforeSettlement,'rejected repair must not mutate settlement');
+}
+let tx=partialFixture('DUPLICAT');
+ledger.push([...tx.slice(0,12)]);
+rejectedRepair('DUPLICAT',/유일하지/);
+tx=partialFixture('WRONGAMT');
+tx[7]=36000;
+rejectedRepair('WRONGAMT',/한도 초과/);
+tx=partialFixture('WRONGOWN');
+tx[11]=tx[11].replace('[OWNER:운영자 A]','[OWNER:운영자 C]');
+rejectedRepair('WRONGOWN',/속성 불일치/);
+tx=partialFixture('WRONGSET');
+tx[4]='SET-OTHER';
+rejectedRepair('WRONGSET',/속성 불일치/);
+tx=partialFixture('BADVALUE');
+tx[7]=-100;
+rejectedRepair('BADVALUE',/금액 오류/);
+tx=partialFixture('MULTIPAY');
+settlements[0][11]=500;
+rejectedRepair('MULTIPAY',/복수 불일치/);
+tx=partialFixture('SNAPSHOT');
+ctx.mdSettlementSnapshot_=()=> 'changed';
+rejectedRepair('SNAPSHOT',/원장 변경/);
+ctx.mdSettlementSnapshot_=()=> 'snapshot';
+console.log('PASS: reject duplicate, altered, misattributed and inconsistent payout repair requests');
 console.log('PASS: payout, idempotency, overpayment guard, partial-write detection, repair, reconciliation');
