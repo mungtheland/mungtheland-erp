@@ -43,4 +43,24 @@ booking[8]='등원 중';
 assert.equal(context.mdDeductPass({bookingId:'RSV-TEST',passId:created.passId}).remainingCount,2);
 assert.equal(context.mdRestorePass({bookingId:'RSV-TEST',passId:created.passId,reason:'정상 복구'}).remainingCount,3);
 assert.equal(sheets.get('이용권관리').length,2);
+// Repeated restore is rejected, with no extra ledger entry or count change.
+const historyRows=sheets.get('_이용권변동이력');
+const beforeDuplicateRestore=historyRows.length;
+assert.throws(()=>context.mdRestorePass({bookingId:'RSV-TEST',passId:created.passId,reason:'중복 복구'}),/차감 기록/);
+assert.equal(historyRows.length,beforeDuplicateRestore);
+assert.equal(context.mdListPasses('DOG-TEST')[0].remainingCount,3);
+// Deduct the last available use, then reject a new booking with zero remaining.
+const passRow=sheets.get('이용권관리')[1];
+passRow[5]=1;passRow[6]=0;passRow[7]=1;passRow[14]='사용 가능';
+sheets.get('예약·등하원관리').push(['RSV-LAST',today,'DOG-TEST','테스트견','','예약',new Date(),'','등원 중','미차감','']);
+assert.equal(context.mdDeductPass({bookingId:'RSV-LAST',passId:created.passId}).remainingCount,0);
+assert.equal(context.mdDeductPass({bookingId:'RSV-LAST',passId:created.passId}).alreadyDeducted,true);
+sheets.get('예약·등하원관리').push(['RSV-EXTRA',today,'DOG-TEST','테스트견','','예약',new Date(),'','등원 중','미차감','']);
+const beforeZero=historyRows.length;
+assert.throws(()=>context.mdDeductPass({bookingId:'RSV-EXTRA',passId:created.passId}),/잔여 횟수/);
+assert.equal(historyRows.length,beforeZero);
+assert.equal(passRow[7],0);
+// Restoring the final use makes one use available again.
+assert.equal(context.mdRestorePass({bookingId:'RSV-LAST',passId:created.passId,reason:'마지막 회차 복구'}).remainingCount,1);
+assert.equal(passRow[14],'사용 가능');
 console.log('PASS: in-memory dog/pass/attendance/deduct/restore/history, production untouched');
