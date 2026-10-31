@@ -3,7 +3,9 @@ on:
   push:
     paths:
       - 'src/Settlement*.js'
+      - 'src/Accounting.js'
       - 'tests/settlement.integration.test.js'
+      - 'tests/accounting-integrity.integration.test.js'
       - '.github/workflows/settlement-tests.yml'
   workflow_dispatch:
 jobs:
@@ -14,5 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test accounting integrity
+        run: node tests/accounting-integrity.integration.test.js
       - name: Test isolated settlement functions
         run: node tests/settlement.integration.test.js
