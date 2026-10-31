@@ -15,10 +15,13 @@ function mdBackupRetentionPreview(){
     if(!match)continue;
     const iso=match[1]+'-'+match[2]+'-'+match[3]+'T'+match[4]+':'+match[5]+':'+match[6]+'+09:00';
     const ms=Date.parse(iso);
-    if(!Number.isFinite(ms)||new Date(ms).toISOString().slice(0,10)!==new Date(ms).toISOString().slice(0,10))continue;
+    if(!Number.isFinite(ms)||Utilities.formatDate(new Date(ms),'Asia/Seoul','yyyy-MM-dd_HH-mm-ss')!==name.slice(prefix.length))continue;
     files.push({id:file.getId(),name,date:iso,ms});
   }
   const now=Date.now();
+  const validFiles=files.filter(f=>f.ms<=now+86400000);
+  files.length=0;
+  validFiles.forEach(f=>files.push(f));
   const cutoff=now-30*86400000;
   files.sort((a,b)=>b.ms-a.ms||a.id.localeCompare(b.id));
   const keep=new Set();
