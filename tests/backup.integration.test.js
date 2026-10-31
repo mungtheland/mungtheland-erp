@@ -10,7 +10,7 @@ const context={
   DriveApp:{getFileById:id=>({getId:()=>id,makeCopy:(name,folder)=>{const file={getId:()=> 'COPY',getName:()=>name};copies.push(file);return file;}}),getFolderById:id=>({getName:()=>id})},
   SpreadsheetApp:{openById:id=>({getSheets:sheets})},
   Utilities:{formatDate:()=> '2026-11-01_21-00-00'},
-  ScriptApp:{getProjectTriggers:()=>triggers,deleteTrigger:t=>triggers.splice(triggers.indexOf(t),1),newTrigger:()=>({timeBased(){return this},atHour(){return this},everyDays(){return this},inTimezone(){return this},create(){triggers.push({getHandlerFunction:()=> 'mdBackupSpreadsheet'})}})},
+  ScriptApp:{getProjectTriggers:()=>triggers,deleteTrigger:t=>triggers.splice(triggers.indexOf(t),1),newTrigger:handler=>({timeBased(){return this},atHour(){return this},everyDays(){return this},inTimezone(){return this},create(){triggers.push({getHandlerFunction:()=>handler})}})},
   MailApp:{sendEmail:(to,subject,body)=>emails.push({to,subject,body})},
   Logger:{log:()=>{}},Date
 };
