@@ -28,4 +28,42 @@ assert.equal(ctx.mdRepairSettlementPayment({month:'2026-09',requestId:data.reque
 assert.equal(settlements[0][11],10000);
 assert.equal(ctx.mdSettlementStatus('2026-09').inconsistent,false);
 assert.equal(ctx.mdRepairSettlementPayment({month:'2026-09',requestId:data.requestId,confirm:true}).alreadyReconciled,true);
+// Verify payout controls with fresh in-memory fixtures; no live ledger writes.
+function resetFixture({cash=100000,reserve=0,paidA=0,paidB=0,limitA=35000,limitB=35000}={}){
+ ledger.length=0;settlements.length=0;
+ ledger.push(['TXN-CAP','2026-09-01','출자금','자본','','test',cash,0,'계좌이체','확정','tester','[OWNER:운영자 A]']);
+ settlements.push(['SET-1','2026-09',new Date(),'tester',reserve,100000,0,100000,limitA+limitB,limitA,limitB,paidA,paidB,'확정','snapshot','test','','']);
+}
+const request=(id,amount=10000,owner='운영자 A')=>({month:'2026-09',owner,date:'2026-10-29',amount,requestId:'REQ-'+id});
+resetFixture();
+assert.throws(()=>ctx.mdRepairSettlementPayment({month:'2026-09',requestId:'REQ-12345678'}),/승인/);
+assert.equal(ledger.length,1);
+assert.throws(()=>ctx.mdSettlementPayment(request('TOOLARGE',35001)),/잔액 초과/);
+assert.equal(ledger.length,1);
+resetFixture({cash:12000,reserve:3000});
+assert.throws(()=>ctx.mdSettlementPayment(request('CASHLOW1',10000)),/잔액이 부족/);
+assert.equal(ledger.length,1);
+resetFixture({cash:15000,reserve:5000});
+assert.equal(ctx.mdSettlementPayment(request('CASHOK01',10000)).amount,10000);
+assert.equal(ctx.mdSettlementPayment(request('CASHOK01',10000)).alreadyRecorded,true);
+assert.equal(ledger.length,2);
+resetFixture();
+ctx.mdSettlementSnapshot_=()=> 'changed';
+assert.throws(()=>ctx.mdSettlementPayment(request('CHANGED1')),/변경/);
+assert.equal(ledger.length,1);
+ctx.mdSettlementSnapshot_=()=> 'snapshot';
+resetFixture();
+const p=ctx.mdSettlementPayment(request('PARTIAL1'));
+assert.equal(p.amount,10000);
+// Simulate a partial write: ledger exists but settlement history was not recorded.
+settlements[0][16]='';settlements[0][11]=0;
+assert.throws(()=>ctx.mdSettlementPayment(request('PARTIAL1')),/이미 기록/);
+assert.equal(ledger.length,2,'retry must not duplicate payout after partial write');
+assert.equal(ctx.mdRepairSettlementPayment({month:'2026-09',requestId:'REQ-PARTIAL1',confirm:true}).repaired,true);
+assert.equal(settlements[0][11],10000);
+assert.equal(ctx.mdSettlementPayment(request('PARTIAL1')).alreadyRecorded,true);
+resetFixture();
+assert.equal(ctx.mdSettlementPayment(request('OWNERB01',5000,'운영자 B')).amount,5000);
+assert.equal(ctx.mdSettlementStatus('2026-09').paidB,5000);
+assert.equal(ctx.mdSettlementStatus('2026-09').inconsistent,false);
 console.log('PASS: payout, idempotency, overpayment guard, partial-write detection, repair, reconciliation');
