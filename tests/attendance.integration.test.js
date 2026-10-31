@@ -24,3 +24,6 @@ assert.throws(() => ctx.mdCheckOut('R1'), /일치하지/);
 row[7]='';row[5]='예약취소';
 assert.throws(() => ctx.mdCheckOut('R1'), /하원할 수 없는/);
 console.log('PASS: attendance state regression');
+
+// Booking date validation runs before any spreadsheet mutation.
+assert.throws(()=>ctx.mdCreateBooking({dogId:'D1',date:'2026-02-30'}),/올바른 이용일/);
