@@ -9,7 +9,7 @@ const context={Date,Math,JSON,Number,String,Boolean,Object,Array,Error,isNaN,Log
 let seq=0;
 vm.createContext(context);
 for(const file of ['src/Code.js','src/Passes.js','src/PassAdjust.js','src/Accounting.js','src/Settlement.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context,{filename:file});
-const headers={...JSON.parse(JSON.stringify(context.MD_SCHEMAS||{})),
+const headers={...JSON.parse(vm.runInContext('JSON.stringify(MD_SCHEMAS)',context)),
  '_이용권변동이력':['이력 ID','일시','유형','이용권 ID','예약 ID','증감','이전','이후','운영자','사유']};
 for(const name of names){if(!headers[name])throw Error('Missing schema '+name);rows.get(name).push(headers[name]);}
 function sheet(name){const data=rows.get(name);if(!data)throw Error('Unknown sheet '+name);return {
