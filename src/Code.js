@@ -82,7 +82,7 @@ function mdCreateBooking(data){
   data=data||{};
   const dogId=mdRequired_(data.dogId,'반려견 ID');
   const date=mdRequired_(data.date,'이용일');
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||isNaN(Date.parse(date+'T00:00:00Z')))throw Error('이용일 형식은 yyyy-MM-dd');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||isNaN(Date.parse(date+'T00:00:00Z'))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date)throw Error('올바른 이용일을 입력하세요 (yyyy-MM-dd).');
   const lock=LockService.getScriptLock();
   lock.waitLock(20000);
   try{
@@ -94,7 +94,7 @@ function mdCreateBooking(data){
     const bookings=mdSheet_('예약·등하원관리');
     if(bookings.getLastRow()>1){
       const values=bookings.getRange(2,1,bookings.getLastRow()-1,11).getDisplayValues();
-      if(values.some(r=>r[1]===date&&r[2]===dogId&&!['취소','예약취소'].includes(r[5])))
+      if(values.some(r=>{const saved=r[1];const normalized=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved:/^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?$/.test(saved)?saved.replace(/\s/g,'').replace(/\.$/,'').split('.').map((v,i)=>i?String(v).padStart(2,'0'):v).join('-'):saved;return normalized===date&&r[2]===dogId&&!['취소','예약취소'].includes(r[5]);}))
         throw Error('동일 반려견의 해당 날짜 예약이 이미 존재합니다.');
     }
     const bookingId=mdId_('RSV');
