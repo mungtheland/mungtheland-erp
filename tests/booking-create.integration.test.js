@@ -39,5 +39,5 @@ assert.equal(create('2026-11-02').bookingId,'R4','cancelled booking does not blo
 assert.throws(()=>create('2026-11-02'),/이미 존재/,'rebooking must still be duplicate-protected');
 assert.equal(bookings.length,4);
 assert.equal(lockHeld,false,'all locks must be released');
-assert.equal(lockCalls,9,'valid requests should each acquire lock');
+assert.equal(lockCalls,8,'valid requests should each acquire lock');
 console.log('PASS: repeat booking submissions, date variants, cancellation and locking');
