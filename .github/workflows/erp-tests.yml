@@ -11,6 +11,7 @@ on:
       - 'tests/passes.integration.test.js'
       - 'tests/attendance.integration.test.js'
       - 'tests/booking-change.integration.test.js'
+      - 'tests/booking-create.integration.test.js'
       - 'tests/integrity.integration.test.js'
       - 'tests/passes.ui.test.js'
       - '.github/workflows/erp-tests.yml'
@@ -37,6 +38,8 @@ jobs:
         run: node tests/passes.integration.test.js
       - name: Test attendance state transitions in memory
         run: node tests/attendance.integration.test.js
+      - name: Test repeat booking submissions and localized dates in memory
+        run: node tests/booking-create.integration.test.js
       - name: Test booking changes in memory
         run: node tests/booking-change.integration.test.js
       - name: Test cross-sheet integrity audit in memory
