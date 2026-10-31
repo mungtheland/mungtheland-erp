@@ -14,6 +14,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Validate JavaScript
         run: npm run check
+      - name: Install isolated UI test dependency
+        run: npm install --no-save --no-package-lock jsdom@26
       - name: Test isolated business logic
         run: npm run test:ci
       - name: Configure clasp
