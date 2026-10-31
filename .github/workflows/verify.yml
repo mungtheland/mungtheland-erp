@@ -1,0 +1,28 @@
+name: Full ERP verification (no deployment)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/verify.yml'
+      - '.github/workflows/deploy.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate all source syntax
+        run: npm run check
+      - name: Install isolated UI test dependency
+        run: npm install --no-save --no-package-lock jsdom@26
+      - name: Run all isolated regression tests
+        run: npm run test:ci
