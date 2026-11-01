@@ -25,7 +25,7 @@ function el(q){const x=document.querySelector(q);assert.ok(x,'Missing '+q);retur
 const operatorOptions=[...el('#activeOperator').options].map(o=>o.value).filter(Boolean);
 assert.deepEqual(operatorOptions,['신송이','정소영'],'Operator dropdown must use the two co-representative names');
 assert.deepEqual([...el('#settlementPayOwner').options].map(o=>o.value),['신송이','정소영']);
-assert.deepEqual([...el('#accountingForm select[name="owner"]').options].map(o=>o.value).filter(Boolean),['신송이','정소영']);
+assert.deepEqual([...el('#accountForm select[name="owner"]').options].map(o=>o.value).filter(Boolean),['신송이','정소영']);
 el('[data-tab="passes"]').click();
 assert.ok(el('#passes').classList.contains('active'),'Pass tab not active');
 el('#passDogSearch').value='테스트';
