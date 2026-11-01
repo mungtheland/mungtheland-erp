@@ -11,7 +11,7 @@ const ctx={Date,Number,String,Error,Math,JSON,isNaN,Session:{getEffectiveUser:()
  LockService:{getScriptLock:()=>({waitLock(){assert.equal(locked,false);locked=true},releaseLock(){locked=false}})}
 };
 vm.createContext(ctx);
-for(const path of ['src/Accounting.js','src/Settlement.js'])vm.runInContext(fs.readFileSync(path,'utf8'),ctx,{filename:path});
+for(const path of ['src/OperatorAudit.js','src/Accounting.js','src/Settlement.js'])vm.runInContext(fs.readFileSync(path,'utf8'),ctx,{filename:path});
 ctx.mdRequired_=(v,n)=>{if(v==null||String(v).trim()==='')throw Error(n);return String(v).trim()};
 ctx.mdCheckSetup=()=>{};ctx.mdSheet_=()=>sheet;ctx.mdId_=()=> 'TXN-'+(++seq);
 ctx.mdFindById_=(_,id)=>ledger.findIndex(x=>x[0]===id)+2;
@@ -30,8 +30,8 @@ assert.equal(preview.distributable,80001);
 assert.equal(preview.owners['운영자 A'],40000);
 assert.equal(preview.owners['운영자 B'],40001);
 assert.equal(ledger.length,3,'preview must not create a transaction');
-assert.equal(ctx.mdCancelAccountingEntry({transactionId:sale.transactionId,reason:'중복 입력 정정'}).status,'취소');
-assert.equal(ctx.mdCancelAccountingEntry({transactionId:sale.transactionId,reason:'중복 입력 정정'}).alreadyCancelled,true);
+assert.equal(ctx.mdCancelAccountingEntry({transactionId:sale.transactionId,reason:'중복 입력 정정',operator:'운영자 A'}).status,'취소');
+assert.equal(ctx.mdCancelAccountingEntry({transactionId:sale.transactionId,reason:'중복 입력 정정',operator:'운영자 A'}).alreadyCancelled,true);
 assert.equal(ctx.mdAccountingSummary('2026-10').totals.sales,0);
 assert.equal(ctx.mdSettlementPreview({month:'2026-10'}).distributable,0);
 assert.equal(ledger.length,3,'cancellation must preserve original record');
