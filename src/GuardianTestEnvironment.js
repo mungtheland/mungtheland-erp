@@ -12,3 +12,9 @@ function mdGuardianTestSetupCheck_(){
   const missing=required.filter(name=>!book.getSheetByName(name));
   return {ok:missing.length===0,missing,spreadsheetId:book.getId()};
 }
+
+function mdGuardianTestSheet_(name){
+  const sheet=mdGuardianTestBook_().getSheetByName(name);
+  if(!sheet)throw Error('Required isolated test sheet missing: '+name);
+  return sheet;
+}
