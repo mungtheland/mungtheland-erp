@@ -19,5 +19,5 @@ function mdSettlementPreview(data){
   const cashLimit=Math.max(0,cashBalance-reserve);
   const distributable=Math.min(profitLimit,cashLimit);
   const a=Math.floor(distributable/2),b=distributable-a;
-  return {month,sales,costs,monthProfit,cashBalance,totalCapital,reserve,profitLimit,cashLimit,distributable,owners:{'운영자 A':a,'운영자 B':b},ratio:'50:50',previewOnly:true,warning:'수동 입력 현금거래 기준 참고치입니다. 미지급금·미수금·부가세·소득세·환불채무·기존 배분액 등은 자동 반영되지 않습니다. 실제 정산 전 장부 대사 및 별도 승인 필요.'};
+  return {month,sales,costs,monthProfit,cashBalance,totalCapital,reserve,profitLimit,cashLimit,distributable,owners:{'신송이':a,'정소영':b},ratio:'50:50',previewOnly:true,warning:'수동 입력 현금거래 기준 참고치입니다. 미지급금·미수금·부가세·소득세·환불채무·기존 배분액 등은 자동 반영되지 않습니다. 실제 정산 전 장부 대사 및 별도 승인 필요.'};
 }
