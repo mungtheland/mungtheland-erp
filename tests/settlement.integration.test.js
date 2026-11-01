@@ -19,6 +19,8 @@ settlements.push(['SET-1','2026-09',new Date(),'tester',0,100000,0,100000,70000,
 const data={month:'2026-09',owner:'운영자 A',date:'2026-10-29',amount:10000,requestId:'REQ-12345678',operator:'운영자 A',reason:'정산 지급 확인'};
 const first=ctx.mdSettlementPayment(data);
 assert.equal(first.amount,10000);assert.equal(ledger.length,2);assert.equal(settlements[0][11],10000);
+assert.equal(ledger[1][10],'운영자 A');
+assert.match(ledger[1][11],/\[REASON:정산 지급 확인\]/);
 assert.equal(ctx.mdSettlementPayment(data).alreadyRecorded,true);assert.equal(ledger.length,2);
 assert.throws(()=>ctx.mdSettlementPayment({...data,amount:26000,requestId:'REQ-87654321'}),/잔액 초과/);
 assert.equal(ctx.mdSettlementStatus('2026-09').inconsistent,false);
@@ -36,6 +38,9 @@ function resetFixture({cash=100000,reserve=0,paidA=0,paidB=0,limitA=35000,limitB
 }
 const request=(id,amount=10000,owner='운영자 A')=>({month:'2026-09',owner,date:'2026-10-29',amount,requestId:'REQ-'+id,operator:'운영자 A',reason:'정산 지급 확인'});
 resetFixture();
+assert.throws(()=>ctx.mdSettlementPayment({...data,operator:''}),/담당자/);
+assert.throws(()=>ctx.mdSettlementPayment({...data,reason:''}),/사유/);
+assert.equal(ledger.length,1,'invalid operator/reason must not write payout');
 assert.throws(()=>ctx.mdRepairSettlementPayment({month:'2026-09',requestId:'REQ-12345678'}),/승인/);
 assert.equal(ledger.length,1);
 assert.throws(()=>ctx.mdSettlementPayment(request('TOOLARGE',35001)),/잔액 초과/);
