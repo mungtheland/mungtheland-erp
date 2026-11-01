@@ -69,3 +69,7 @@
 - 요금표는 실제 ERP 상품 설정이나 결제금액에 **아직 반영하지 않음**.
 
 관련 문서: `docs/daycare-operating-policy-draft.md`, `docs/daycare-service-agreement-draft.md`, `docs/customer-service-guide-draft.md`.
+
+## 중도 환불 산식 검토 현황
+- **B안 우선 검토(최종 미확정):** 이미 사용한 회차 × 해당 체급·시간대 일일권 정상가를 실결제액에서 공제하는 방식. 할인 혜택의 사후 회수에 해당할 수 있어 관련 법령·약관 유효성 검토 전 고객 적용 금지.
+- A안(정기권 실결제 회당 단가 공제)은 비교안으로 보존. 구체적 환불액·추가 공제·예외사유는 미확정.
