@@ -11,7 +11,7 @@ function mdValidateGuardianRequest_(data){
  return {meal,food,belt,condition,notes};
 }
 function mdGuardianRequestSheet_(){
- const s=mdBook_().getSheetByName('보호자등원요청');
+ const s=mdGuardianTestBook_().getSheetByName('보호자등원요청');
  if(!s)throw Error('Guardian request test sheet not configured');
  const h=s.getRange(1,1,1,MD_GR_HEADERS_.length).getDisplayValues()[0];
  if(h.some((v,i)=>v!==MD_GR_HEADERS_[i]))throw Error('Guardian request schema mismatch');
@@ -24,12 +24,12 @@ function mdSaveGuardianRequestInternal_(principal,bookingId,data,expectedRevisio
  const clean=mdValidateGuardianRequest_(data),lock=LockService.getScriptLock();
  lock.waitLock(20000);
  try{
-  const bookings=mdSheet_('예약·등하원관리'),br=mdFindById_(bookings,String(bookingId));
+  const bookings=mdGuardianTestSheet_('예약·등하원관리'),br=mdFindById_(bookings,String(bookingId));
   if(br<2)throw Error('Booking not found');
   const b=bookings.getRange(br,1,1,11).getValues()[0];
   if(String(b[2])!==String(principal.dogId))throw Error('Access denied');
   if(b[6]||b[7]||String(b[8])!=='미등원'||String(b[5])!=='예약')throw Error('Request locked after check-in or cancellation');
-  const dogs=mdSheet_('고객·반려견관리'),dr=mdFindById_(dogs,String(principal.dogId));
+  const dogs=mdGuardianTestSheet_('고객·반려견관리'),dr=mdFindById_(dogs,String(principal.dogId));
   if(dr<2||String(dogs.getRange(dr,2).getValue())!==String(principal.customerId))throw Error('Access denied');
   const s=mdGuardianRequestSheet_(),last=s.getLastRow();
   const rows=last>1?s.getRange(2,1,last-1,MD_GR_HEADERS_.length).getValues():[];
