@@ -3,7 +3,7 @@
  */
 function mdAuditOperator_(data){
  const operator=String((data||{}).operator||'').trim();
- if(!['신송이','정소영'].includes(operator))throw Error('처리 담당자(신송이/B)를 선택하세요.');
+ if(!['신송이','정소영'].includes(operator))throw Error('처리 담당자(신송이/정소영)를 선택하세요.');
  return operator;
 }
 function mdAuditReason_(data,label){
