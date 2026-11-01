@@ -5,9 +5,9 @@ function mdAccountingSummary(month){
   const sheet=mdSheet_('회계관리'),last=sheet.getLastRow();
   const rows=last<2?[]:sheet.getRange(2,1,last-1,12).getValues();
   const fmt=v=>v instanceof Date?Utilities.formatDate(v,'Asia/Seoul','yyyy-MM-dd'):String(v||'').slice(0,10);
-  const items=rows.filter(r=>fmt(r[1]).slice(0,7)===month&&String(r[9])==='확정').map(r=>({id:String(r[0]),date:fmt(r[1]),type:String(r[2]),category:String(r[3]),description:String(r[5]),income:Number(r[6])||0,expense:Number(r[7])||0,paymentMethod:String(r[8]),owner:(String(r[11]||'').match(/\[OWNER:(운영자 A|운영자 B)\]/)||[])[1]||''}));
+  const items=rows.filter(r=>fmt(r[1]).slice(0,7)===month&&String(r[9])==='확정').map(r=>({id:String(r[0]),date:fmt(r[1]),type:String(r[2]),category:String(r[3]),description:String(r[5]),income:Number(r[6])||0,expense:Number(r[7])||0,paymentMethod:String(r[8]),owner:(String(r[11]||'').match(/\[OWNER:(신송이|정소영)\]/)||[])[1]||''}));
   const totals={sales:0,costs:0,contributions:0,withdrawals:0};
-  const owners={'운영자 A':{contributions:0,withdrawals:0},'운영자 B':{contributions:0,withdrawals:0}};
+  const owners={'신송이':{contributions:0,withdrawals:0},'정소영':{contributions:0,withdrawals:0}};
   items.forEach(r=>{if(owners[r.owner]&&r.type==='출자금')owners[r.owner].contributions+=r.income;if(owners[r.owner]&&r.type==='인출금')owners[r.owner].withdrawals+=r.expense;if(r.type==='매출')totals.sales+=r.income;else if(r.type==='지출')totals.costs+=r.expense;else if(r.type==='출자금')totals.contributions+=r.income;else if(r.type==='인출금')totals.withdrawals+=r.expense;});
   return {month,totals,owners,operatingResult:totals.sales-totals.costs,cashMovement:totals.sales+totals.contributions-totals.costs-totals.withdrawals,items:items.reverse().slice(0,100)};
 }
@@ -23,7 +23,7 @@ function mdAddAccountingEntry(data){
   const requestId=mdRequired_(data.requestId,'등록 요청 ID');
   if(!/^REQ-[A-Za-z0-9-]{8,100}$/.test(requestId))throw Error('등록 요청 ID 형식 오류');
   const owner=String(data.owner||'').trim();
-  if(['출자금','인출금'].includes(type)&&!['운영자 A','운영자 B'].includes(owner))throw Error('출자금·인출금은 운영자를 선택하세요.');
+  if(['출자금','인출금'].includes(type)&&!['신송이','정소영'].includes(owner))throw Error('출자금·인출금은 운영자를 선택하세요.');
   const lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     mdCheckSetup();
