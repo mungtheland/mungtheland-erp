@@ -14,12 +14,12 @@ const ctx={console,Number,String,Error,Date,Math,JSON,RegExp,
 vm.createContext(ctx);
 for(const f of ['src/OperatorAudit.js','src/SettlementV4.js','src/SettlementPayment.js','src/SettlementRepair.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
 ctx.mdSettlementSnapshot_=()=> 'snapshot';
-ledger.push(['TXN-CAP','2026-09-01','출자금','자본','', 'test',100000,0,'계좌이체','확정','tester','[OWNER:운영자 A]']);
+ledger.push(['TXN-CAP','2026-09-01','출자금','자본','', 'test',100000,0,'계좌이체','확정','tester','[OWNER:신송이]']);
 settlements.push(['SET-1','2026-09',new Date(),'tester',0,100000,0,100000,70000,35000,35000,0,0,'확정','snapshot','test','','']);
-const data={month:'2026-09',owner:'운영자 A',date:'2026-10-29',amount:10000,requestId:'REQ-12345678',operator:'운영자 A',reason:'정산 지급 확인'};
+const data={month:'2026-09',owner:'신송이',date:'2026-10-29',amount:10000,requestId:'REQ-12345678',operator:'신송이',reason:'정산 지급 확인'};
 const first=ctx.mdSettlementPayment(data);
 assert.equal(first.amount,10000);assert.equal(ledger.length,2);assert.equal(settlements[0][11],10000);
-assert.equal(ledger[1][10],'운영자 A');
+assert.equal(ledger[1][10],'신송이');
 assert.match(ledger[1][11],/\[REASON:정산 지급 확인\]/);
 assert.equal(ctx.mdSettlementPayment(data).alreadyRecorded,true);assert.equal(ledger.length,2);
 assert.throws(()=>ctx.mdSettlementPayment({...data,amount:26000,requestId:'REQ-87654321'}),/잔액 초과/);
@@ -33,10 +33,10 @@ assert.equal(ctx.mdRepairSettlementPayment({month:'2026-09',requestId:data.reque
 // Verify payout controls with fresh in-memory fixtures; no live ledger writes.
 function resetFixture({cash=100000,reserve=0,paidA=0,paidB=0,limitA=35000,limitB=35000}={}){
  ledger.length=0;settlements.length=0;
- ledger.push(['TXN-CAP','2026-09-01','출자금','자본','','test',cash,0,'계좌이체','확정','tester','[OWNER:운영자 A]']);
+ ledger.push(['TXN-CAP','2026-09-01','출자금','자본','','test',cash,0,'계좌이체','확정','tester','[OWNER:신송이]']);
  settlements.push(['SET-1','2026-09',new Date(),'tester',reserve,100000,0,100000,limitA+limitB,limitA,limitB,paidA,paidB,'확정','snapshot','test','','']);
 }
-const request=(id,amount=10000,owner='운영자 A')=>({month:'2026-09',owner,date:'2026-10-29',amount,requestId:'REQ-'+id,operator:'운영자 A',reason:'정산 지급 확인'});
+const request=(id,amount=10000,owner='신송이')=>({month:'2026-09',owner,date:'2026-10-29',amount,requestId:'REQ-'+id,operator:'신송이',reason:'정산 지급 확인'});
 resetFixture();
 assert.throws(()=>ctx.mdSettlementPayment({...data,operator:''}),/담당자/);
 assert.throws(()=>ctx.mdSettlementPayment({...data,reason:''}),/사유/);
@@ -68,7 +68,7 @@ assert.equal(ctx.mdRepairSettlementPayment({month:'2026-09',requestId:'REQ-PARTI
 assert.equal(settlements[0][11],10000);
 assert.equal(ctx.mdSettlementPayment(request('PARTIAL1')).alreadyRecorded,true);
 resetFixture();
-assert.equal(ctx.mdSettlementPayment(request('OWNERB01',5000,'운영자 B')).amount,5000);
+assert.equal(ctx.mdSettlementPayment(request('OWNERB01',5000,'정소영')).amount,5000);
 assert.equal(ctx.mdSettlementStatus('2026-09').paidB,5000);
 assert.equal(ctx.mdSettlementStatus('2026-09').inconsistent,false);
 
@@ -93,7 +93,7 @@ tx=partialFixture('WRONGAMT');
 tx[7]=36000;
 rejectedRepair('WRONGAMT',/한도 초과/);
 tx=partialFixture('WRONGOWN');
-tx[11]=tx[11].replace('[OWNER:운영자 A]','[OWNER:운영자 C]');
+tx[11]=tx[11].replace('[OWNER:신송이]','[OWNER:운영자 C]');
 rejectedRepair('WRONGOWN',/속성 불일치/);
 tx=partialFixture('WRONGSET');
 tx[4]='SET-OTHER';
