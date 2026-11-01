@@ -7,7 +7,7 @@ const source=makeSheet('운영', [['제목','합계'],['기록',10]],[['',''],['
 const backup=makeSheet('운영', [['제목','합계'],['기록',10]],[['',''],['','=5+5']]);
 const context={MD_SPREADSHEET_ID:'SOURCE',MD_BACKUP_FOLDER_PROPERTY:'MD_BACKUP_FOLDER_ID',MD_BACKUP_PREFIX:'멍더랜드ERP_백업_',
  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k)})},
- DriveApp:{getFileById:()=>({getName:()=> '멍더랜드ERP_백업_2026-11-01_08-19-31',getParents:()=>({hasNext:()=>true,next:()=>({getId:()=> 'FOLDER'})})})},
+ DriveApp:{getFileById:()=>({getName:()=> '멍더랜드ERP_백업_2026-11-01_08-19-31',getParents:()=>{let n=0;return {hasNext:()=>n++===0,next:()=>({getId:()=> 'FOLDER'})}}})},
  SpreadsheetApp:{openById:id=>({getSheets:()=>[id==='SOURCE'?source:backup]})},
  Logger:{log:()=>{}},Date,String,JSON,Math};
 vm.createContext(context);vm.runInContext(fs.readFileSync('src/BackupRecoveryAudit.js','utf8'),context);
