@@ -13,8 +13,8 @@ function mdSettlementStatus(month){
  const paidA=Number(r[11])||0,paidB=Number(r[12])||0;
  const ledger=mdSheet_('회계관리'),n=ledger.getLastRow();
  const transactions=n<2?[]:ledger.getRange(2,1,n-1,12).getValues().filter(x=>x[4]===String(r[0])&&x[2]==='인출금'&&x[3]==='이익배분'&&x[9]==='확정');
- const ledgerA=transactions.filter(x=>String(x[11]).includes('[OWNER:운영자 A]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
- const ledgerB=transactions.filter(x=>String(x[11]).includes('[OWNER:운영자 B]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
+ const ledgerA=transactions.filter(x=>String(x[11]).includes('[OWNER:신송이]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
+ const ledgerB=transactions.filter(x=>String(x[11]).includes('[OWNER:정소영]')).reduce((sum,x)=>sum+(Number(x[7])||0),0);
  const inconsistent=ledgerA!==paidA||ledgerB!==paidB||!Number.isSafeInteger(ledgerA)||!Number.isSafeInteger(ledgerB);
  return {month,exists:true,id:String(r[0]),total:Number(r[8]),a:Number(r[9]),b:Number(r[10]),paidA,paidB,remainingA:Number(r[9])-paidA,remainingB:Number(r[10])-paidB,changed:String(r[14])!==mdSettlementSnapshot_(month),inconsistent,ledgerA,ledgerB,needsReview:inconsistent||String(r[14])!==mdSettlementSnapshot_(month),status:String(r[13])};
 }
@@ -28,7 +28,7 @@ function mdConfirmSettlement(data){
   const p=mdSettlementPreview({month,reserve:data.reserve});
   if(p.distributable<=0)throw Error('배분 가능 금액이 없습니다.');
   const id=mdId_('SET');
-  mdSheet_('_정산이력').appendRow([id,month,new Date(),Session.getEffectiveUser().getEmail(),p.reserve,p.sales,p.costs,p.monthProfit,p.distributable,p.owners['운영자 A'],p.owners['운영자 B'],0,0,'확정',mdSettlementSnapshot_(month),note,'','']);
+  mdSheet_('_정산이력').appendRow([id,month,new Date(),Session.getEffectiveUser().getEmail(),p.reserve,p.sales,p.costs,p.monthProfit,p.distributable,p.owners['신송이'],p.owners['정소영'],0,0,'확정',mdSettlementSnapshot_(month),note,'','']);
   return {id,month,total:p.distributable,owners:p.owners,status:'확정',paymentMade:false};
  }finally{lock.releaseLock();}
 }
