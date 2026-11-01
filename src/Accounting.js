@@ -42,7 +42,8 @@ function mdAddAccountingEntry(data){
 /** 잘못 입력한 거래는 삭제하지 않고 취소 상태와 사유를 남긴다. 실제 환불·역거래는 별도 입력. */
 function mdCancelAccountingEntry(data){
   data=data||{};
-  const id=mdRequired_(data.transactionId,'거래 ID'),reason=mdRequired_(data.reason,'취소 사유');
+  const id=mdRequired_(data.transactionId,'거래 ID'),reason=mdAuditReason_(data,'취소');
+  const humanOperator=mdAuditOperator_(data);
   if(reason.length<3)throw Error('취소 사유를 3자 이상 입력하세요.');
   const lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
@@ -53,7 +54,7 @@ function mdCancelAccountingEntry(data){
     if(String(values[3])==='이익배분'&&String(values[4]).startsWith('SET-'))throw Error('정산 지급 거래는 일반 취소할 수 없습니다. 정산 이력 대조 후 별도 정정이 필요합니다.');
     if(values[9]!=='확정')throw Error('확정 거래만 취소할 수 있습니다.');
     const stamp=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
-    const operator=Session.getEffectiveUser().getEmail()||'운영자';
+    const operator=humanOperator;
     const oldNotes=String(values[11]||'');
     sheet.getRange(row,10).setValue('취소');
     sheet.getRange(row,12).setValue(oldNotes+' [CANCEL:'+stamp+' / '+operator+' / '+reason.replace(/[\[\]]/g,'')+']');
