@@ -8,7 +8,7 @@ const context={Date,Math,JSON,Number,String,Boolean,Object,Array,Error,isNaN,Log
  Utilities:{formatDate:(d,tz,fmt)=>fmt==='yyyyMMdd'?new Date(d).toISOString().slice(0,10).replace(/-/g,''):fmt==='yyyy-MM-dd HH:mm:ss'?'2026-11-01 12:00:00':new Date(d).toISOString().slice(0,10),getUuid:()=>String(++seq).padStart(8,'0')+'-test'}};
 let seq=0;
 vm.createContext(context);
-for(const file of ['src/Code.js','src/Passes.js','src/PassAdjust.js','src/Accounting.js','src/Settlement.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context,{filename:file});
+for(const file of ['src/OperatorAudit.js','src/Code.js','src/Passes.js','src/PassAdjust.js','src/Accounting.js','src/Settlement.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context,{filename:file});
 const headers={...JSON.parse(vm.runInContext('JSON.stringify(MD_SCHEMAS)',context)),
  '_이용권변동이력':['이력 ID','일시','유형','이용권 ID','예약 ID','증감','이전','이후','운영자','사유']};
 for(const name of names){if(!headers[name])throw Error('Missing schema '+name);rows.get(name).push(headers[name]);}
@@ -34,11 +34,11 @@ const dog=context.mdRegisterDog({guardianName:'격리 보호자',phone:'000-0000
 const pass=context.mdRegisterPass({dogId:dog.dogId,productName:'주 2회',totalCount:3,startDate:'2020-01-01',expiryDate:'2099-12-31',price:60000,discount:0,paymentStatus:'완료',confirmPaid:true});
 const booking=context.mdCreateBooking({dogId:dog.dogId,date:today});
 assert.throws(()=>context.mdCreateBooking({dogId:dog.dogId,date:today}),/이미 존재/);
-assert.throws(()=>context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId}),/등원/);
+assert.throws(()=>context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId,operator:'운영자 A'}),/등원/);
 assert.equal(context.mdCheckIn(booking.bookingId).checkedIn,true);
 assert.equal(context.mdCheckIn(booking.bookingId).alreadyCheckedIn,true);
-assert.equal(context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId}).remainingCount,2);
-assert.equal(context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId}).alreadyDeducted,true);
+assert.equal(context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId,operator:'운영자 A'}).remainingCount,2);
+assert.equal(context.mdDeductPass({bookingId:booking.bookingId,passId:pass.passId,operator:'운영자 A'}).alreadyDeducted,true);
 assert.equal(context.mdCheckOut(booking.bookingId).checkedOut,true);
 assert.equal(context.mdCheckOut(booking.bookingId).alreadyCheckedOut,true);
 assert.equal(context.mdListPasses(dog.dogId)[0].remainingCount,2);
