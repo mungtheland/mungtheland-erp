@@ -1,11 +1,11 @@
 /** Internal staff review and guardian read helpers. Not public endpoints. */
 function mdGuardianRequestForBookingInternal_(principal,bookingId){
  if(!principal||!principal.customerId||!principal.dogId)throw Error('Unauthenticated');
- const bookings=mdSheet_('예약·등하원관리'),br=mdFindById_(bookings,String(bookingId));
+ const bookings=mdGuardianTestSheet_('예약·등하원관리'),br=mdFindById_(bookings,String(bookingId));
  if(br<2)throw Error('Booking not found');
  const booking=bookings.getRange(br,1,1,11).getValues()[0];
  if(String(booking[2])!==String(principal.dogId))throw Error('Access denied');
- const dogs=mdSheet_('고객·반려견관리'),dr=mdFindById_(dogs,String(principal.dogId));
+ const dogs=mdGuardianTestSheet_('고객·반려견관리'),dr=mdFindById_(dogs,String(principal.dogId));
  if(dr<2||String(dogs.getRange(dr,2).getValue())!==String(principal.customerId))throw Error('Access denied');
  const s=mdGuardianRequestSheet_(),last=s.getLastRow();
  if(last<2)return {bookingId:String(bookingId),revision:0,request:null};
