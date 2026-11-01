@@ -6,7 +6,8 @@ function mdPassAdjust_(data){
   const bookingId=mdRequired_(data.bookingId,'예약 ID');
   const passId=mdRequired_(data.passId,'이용권 ID');
   const reason=String(data.reason||'').trim();
-  if(type==='복구'&&!reason)throw Error('복구 사유를 입력하세요.');
+  if(type==='복구')mdAuditReason_(data,'복구');
+  const humanOperator=mdAuditOperator_(data);
   const lock=LockService.getScriptLock();lock.waitLock(30000);
   try{
     mdCheckSetup();
@@ -48,7 +49,7 @@ function mdPassAdjust_(data){
     const nextRemaining=remaining+(type==='차감'?-1:1);
     const nextStatus=nextRemaining===0?'소진':'사용 가능';
     const nextDeduction=type==='차감'?'차감':'복구';
-    const operator=Session.getEffectiveUser().getEmail()||'운영자';
+    const operator=humanOperator;
     // 이력 먼저 기록하고 나머지 업데이트: 실패 시 복구를 시도하며 불일치 시 관리자 확인 필요.
     const entryId=mdId_('HIS');
     const oldPass=passSheet.getRange(pRow,7,1,2).getValues()[0];
@@ -87,5 +88,5 @@ function mdPassHistory(passId){
   const sheet=mdSheet_('_이용권변동이력'),last=sheet.getLastRow();
   if(last<2)return [];
   return sheet.getRange(2,1,last-1,10).getDisplayValues().filter(r=>r[3]===passId).slice(-100).reverse()
-    .map(r=>({id:r[0],at:r[1],type:r[2],passId:r[3],bookingId:r[4],delta:Number(r[5]),before:Number(r[6]),after:Number(r[7]),reason:r[9]}));
+    .map(r=>({id:r[0],at:r[1],type:r[2],passId:r[3],bookingId:r[4],delta:Number(r[5]),before:Number(r[6]),after:Number(r[7]),operator:r[8],reason:r[9]}));
 }
