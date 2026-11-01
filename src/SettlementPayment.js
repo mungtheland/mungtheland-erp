@@ -9,7 +9,7 @@ function mdSettlementPayment(data) {
   const paymentReason=mdAuditReason_(data,'정산 지급');
   const amount=Number(data.amount);
   if(!/^REQ-[A-Za-z0-9-]{8,100}$/.test(requestId))throw Error('요청 ID 형식 오류');
-  if(!['운영자 A','운영자 B'].includes(owner))throw Error('운영자 선택 오류');
+  if(!['신송이','정소영'].includes(owner))throw Error('운영자 선택 오류');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('송금일 형식 오류');
   if(!Number.isSafeInteger(amount)||amount<=0)throw Error('금액 오류');
   const lock=LockService.getScriptLock();lock.waitLock(20000);
@@ -20,8 +20,8 @@ function mdSettlementPayment(data) {
     const index=rows.findIndex(r=>String(r[1])===month);
     if(index<0)throw Error('확정된 정산이 없습니다.');
     const r=rows[index],row=index+2;
-    const paidCol=owner==='운영자 A'?12:13;
-    const historyCol=owner==='운영자 A'?17:18;
+    const paidCol=owner==='신송이'?12:13;
+    const historyCol=owner==='신송이'?17:18;
     const history=String(r[historyCol-1]||'');
     if(history.includes('[REQ:'+requestId+']')){
       const status=mdSettlementStatus(month);
@@ -34,7 +34,7 @@ function mdSettlementPayment(data) {
     const reconciliation=mdSettlementStatus(month);
     if(reconciliation.inconsistent)throw Error('지급 이력과 회계 원장이 불일치합니다. 지급을 중단합니다.');
     if(reconciliation.changed)throw Error('정산 후 원장이 변경되었습니다. 검토가 필요합니다.');
-    const remaining=Number(r[owner==='운영자 A'?9:10])-Number(r[paidCol-1]||0);
+    const remaining=Number(r[owner==='신송이'?9:10])-Number(r[paidCol-1]||0);
     if(amount>remaining)throw Error('미지급 잔액 초과');
     // Include all confirmed transactions up to the actual payment date, not just settlement month.
     const cashRows=ledgerRows.length?ledger.getRange(2,1,ledger.getLastRow()-1,12).getValues():[];
