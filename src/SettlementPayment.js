@@ -5,6 +5,8 @@ function mdSettlementPayment(data) {
   const owner=mdRequired_(data.owner,'운영자');
   const date=mdRequired_(data.date,'송금일');
   const requestId=mdRequired_(data.requestId,'요청 ID');
+  const humanOperator=mdAuditOperator_(data);
+  const paymentReason=mdAuditReason_(data,'정산 지급');
   const amount=Number(data.amount);
   if(!/^REQ-[A-Za-z0-9-]{8,100}$/.test(requestId))throw Error('요청 ID 형식 오류');
   if(!['운영자 A','운영자 B'].includes(owner))throw Error('운영자 선택 오류');
@@ -41,7 +43,7 @@ function mdSettlementPayment(data) {
     const reserved=Number(r[4]||0);
     if(!Number.isSafeInteger(cash)||!Number.isSafeInteger(reserved)||cash-reserved<amount)throw Error('송금일 기준 장부상 현금에서 유보금을 제외한 잔액이 부족합니다.');
     const transactionId=mdId_('TXN');
-    mdAppend_('회계관리',{'거래 ID':transactionId,'거래일':date,'거래유형':'인출금','거래분류':'이익배분','관련 ID':String(r[0]),'거래내용':month+' '+owner+' 정산 지급','입금액':0,'출금액':amount,'결제수단':'계좌이체','거래상태':'확정','처리자':Session.getEffectiveUser().getEmail()||'운영자','비고':'[OWNER:'+owner+'] [REQ:'+requestId+']'});
+    mdAppend_('회계관리',{'거래 ID':transactionId,'거래일':date,'거래유형':'인출금','거래분류':'이익배분','관련 ID':String(r[0]),'거래내용':month+' '+owner+' 정산 지급','입금액':0,'출금액':amount,'결제수단':'계좌이체','거래상태':'확정','처리자':humanOperator,'비고':'[OWNER:'+owner+'] [REQ:'+requestId+'] [REASON:'+paymentReason+']'});
     sheet.getRange(row,historyCol).setValue(history+' [REQ:'+requestId+'] '+transactionId);
     sheet.getRange(row,paidCol).setValue(Number(r[paidCol-1]||0)+amount);
     // 확정 당시의 원장 서명은 변경하지 않는다.
