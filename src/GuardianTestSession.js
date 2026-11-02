@@ -45,3 +45,12 @@ function mdGuardianTestSessionSelfCheck_(){
  const booking=mdGuardianRequestForBookingInternal_(principal,'RSV-TEST-001');
  return {ok:true,checks:['synthetic fixture','session issue','session resolve','invalid token rejected','booking ownership'],bookingId:booking.bookingId};
 }
+
+/** Explicitly revoke a test session without exposing its principal. */
+function mdRevokeGuardianTestSession_(token){
+ if(typeof token!=='string'||!/^[0-9a-f-]{72}$/.test(token))throw Error('Invalid session');
+ const key=MD_GA_TOKEN_PREFIX_+Utilities.base64EncodeWebSafe(
+  Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,token)).replace(/=+$/,'');
+ CacheService.getScriptCache().remove(key);
+ return {revoked:true};
+}
