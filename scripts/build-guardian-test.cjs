@@ -13,6 +13,7 @@ const sources=[
  ['src/GuardianTestApi.js','GuardianTestApi.gs'],
  ['tests/GuardianIsolationSmokeTest.js','GuardianIsolationSmokeTest.gs'],
  ['tests/GuardianWorkflowTest.js','GuardianWorkflowTest.gs'],
+ ['tests/GuardianAccessSecurityTest.js','GuardianAccessSecurityTest.gs'],
  ['tests/GuardianTestRunner.js','GuardianTestRunner.gs']
 ];
 fs.mkdirSync(out,{recursive:true});
