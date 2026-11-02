@@ -14,3 +14,11 @@ function runGuardianWorkflowTest(){
  Logger.log(JSON.stringify(result));
  return result;
 }
+
+/** Test-only session checks. Never log or return the bearer token. */
+function runGuardianSessionTest(){
+ runGuardianTestPreflight();
+ const result=mdGuardianTestSessionSelfCheck_();
+ Logger.log(JSON.stringify(result));
+ return result;
+}
