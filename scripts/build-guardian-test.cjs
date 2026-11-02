@@ -11,13 +11,15 @@ const sources=[
  ['src/GuardianRequestReview.js','GuardianRequestReview.gs'],
  ['src/GuardianTestSession.js','GuardianTestSession.gs'],
  ['src/GuardianTestApi.js','GuardianTestApi.gs'],
- ['src/GuardianInviteTest.js','GuardianInviteTest.gs'],
+ ['src/GuardianInviteTest.js','GuardianInviteService.gs'],
  ['tests/GuardianIsolationSmokeTest.js','GuardianIsolationSmokeTest.gs'],
  ['tests/GuardianWorkflowTest.js','GuardianWorkflowTest.gs'],
  ['tests/GuardianAccessSecurityTest.js','GuardianAccessSecurityTest.gs'],
  ['tests/GuardianInviteTest.js','GuardianInviteTest.gs'],
  ['tests/GuardianTestRunner.js','GuardianTestRunner.gs']
 ];
+const outputs=sources.map(([,target])=>target);
+if(new Set(outputs).size!==outputs.length)throw Error('Duplicate Apps Script output filenames');
 fs.mkdirSync(out,{recursive:true});
 for(const [source,target] of sources){
  const input=path.join(root,source);
