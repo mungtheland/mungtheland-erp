@@ -12,10 +12,12 @@ const sources=[
  ['src/GuardianTestSession.js','GuardianTestSession.gs'],
  ['src/GuardianTestApi.js','GuardianTestApi.gs'],
  ['src/GuardianInviteTest.js','GuardianInviteService.gs'],
+ ['src/GuardianEnrollmentTest.js','GuardianEnrollmentService.gs'],
  ['tests/GuardianIsolationSmokeTest.js','GuardianIsolationSmokeTest.gs'],
  ['tests/GuardianWorkflowTest.js','GuardianWorkflowTest.gs'],
  ['tests/GuardianAccessSecurityTest.js','GuardianAccessSecurityTest.gs'],
  ['tests/GuardianInviteTest.js','GuardianInviteTest.gs'],
+ ['tests/GuardianEnrollmentTest.js','GuardianEnrollmentTest.gs'],
  ['tests/GuardianTestRunner.js','GuardianTestRunner.gs']
 ];
 const outputs=sources.map(([,target])=>target);
