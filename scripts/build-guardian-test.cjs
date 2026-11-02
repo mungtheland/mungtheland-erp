@@ -9,6 +9,7 @@ const sources=[
  ['src/GuardianTestEnvironment.js','GuardianTestEnvironment.gs'],
  ['src/GuardianRequest.js','GuardianRequest.gs'],
  ['src/GuardianRequestReview.js','GuardianRequestReview.gs'],
+ ['src/GuardianTestSession.js','GuardianTestSession.gs'],
  ['tests/GuardianIsolationSmokeTest.js','GuardianIsolationSmokeTest.gs'],
  ['tests/GuardianWorkflowTest.js','GuardianWorkflowTest.gs'],
  ['tests/GuardianTestRunner.js','GuardianTestRunner.gs']
