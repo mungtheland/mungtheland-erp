@@ -18,7 +18,9 @@ function runGuardianAccessSecurityTest(){
  expectDenied(()=>mdGuardianTestSaveWithToken_('invalid','RSV-TEST-001',{
   mealTime:'12:00',foodBrought:'yes',mannerBelt:'na',condition:'normal',notes:''
  },read.revision),'invalid token write');
- const result={ok:true,checks:['own booking read','fixture identity','malformed token rejected','unknown token rejected','unowned booking rejected','unauthenticated write rejected'],bookingId:read.bookingId};
+ mdRevokeGuardianTestSession_(session.token);
+ expectDenied(()=>mdGuardianTestReadWithToken_(session.token,'RSV-TEST-001'),'revoked session must be denied');
+ const result={ok:true,checks:['own booking read','fixture identity','malformed token rejected','unknown token rejected','unowned booking rejected','unauthenticated write rejected','revoked token rejected'],bookingId:read.bookingId};
  Logger.log(JSON.stringify(result)); // Never log bearer tokens or personal data.
  return result;
 }
