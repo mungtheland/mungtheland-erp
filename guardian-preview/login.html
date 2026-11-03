@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>멍더랜드 보호자 로그인 · 테스트</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#25352d;background:#f4f7f4}
+*{box-sizing:border-box}body{margin:0;padding:24px 16px}main{max-width:440px;margin:5vh auto}
+section{background:white;padding:26px;border:1px solid #dbe6df;border-radius:18px;box-shadow:0 4px 20px #1b3b2910}
+h1{font-size:25px}p{line-height:1.6;color:#57695e}label{display:block;font-weight:650;margin:18px 0 7px}
+input,button{font:inherit;width:100%;padding:13px;border-radius:10px}
+input{border:1px solid #c6d6cc}button{border:0;background:#326c4d;color:white;font-weight:700;cursor:pointer;margin-top:16px}
+button:disabled{opacity:.6;cursor:wait}.secondary{background:#e7efe9;color:#27573c}
+.notice{padding:13px;background:#fff7e5;border-left:3px solid #b77d1e;font-size:13px}
+small{display:block;margin-top:12px;color:#5a6c61}a{color:#326c4d}
+</style></head><body><main><h1>멍더랜드 보호자 로그인</h1>
+<p class="notice">독립 테스트 화면입니다. 직원 초대를 통해 등록된 테스트 계정만 사용하세요. Firebase 로그인에 성공해도 ERP 접근 권한이 자동 부여되지는 않습니다.</p>
+<section>
+<form id="login">
+<label for="email">이메일</label><input id="email" type="email" autocomplete="username" required>
+<label for="password">비밀번호</label><input id="password" type="password" autocomplete="current-password" required>
+<button id="loginBtn" type="submit">이메일로 로그인</button>
+</form>
+<div id="signedIn" hidden>
+<p id="identity"></p><p id="verification"></p>
+<button id="verifyBtn" class="secondary" type="button">인증 이메일 다시 보내기</button>
+<button id="logoutBtn" type="button">로그아웃</button>
+</div>
+<button id="resetBtn" class="secondary" type="button">비밀번호 재설정 이메일 보내기</button>
+<small id="status" role="status" aria-live="polite">로그인 상태를 확인하는 중입니다.</small>
+</section>
+<p><a href="./index.html">등원 요청 미리보기</a> (현재 서버 저장 없음)</p>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,sendEmailVerification} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+const firebaseConfig={
+ apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',
+ authDomain:'mungtheland-guardian-test.firebaseapp.com',
+ projectId:'mungtheland-guardian-test',
+ storageBucket:'mungtheland-guardian-test.firebasestorage.app',
+ messagingSenderId:'778415626572',
+ appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'
+};
+const auth=getAuth(initializeApp(firebaseConfig));
+const $=id=>document.getElementById(id);
+const message=text=>{$('status').textContent=text};
+const busy=flag=>{for(const id of ['loginBtn','resetBtn','logoutBtn','verifyBtn'])$(id).disabled=flag};
+onAuthStateChanged(auth,user=>{
+ $('login').hidden=!!user;$('signedIn').hidden=!user;
+ $('resetBtn').hidden=!!user;
+ $('identity').textContent=user?'로그인 계정: '+(user.email||'이메일 없음'):'';
+ $('verification').textContent=user?(user.emailVerified?'이메일 인증 완료':'이메일 인증 대기 중'):'';
+ $('verifyBtn').hidden=!user||user.emailVerified;
+ message(user?'Firebase 인증 성공. ERP 고객 계정 연결은 아직 제공되지 않습니다.':'로그인하지 않았습니다.');
+},()=>message('로그인 상태를 확인할 수 없습니다.'));
+$('login').addEventListener('submit',async e=>{
+ e.preventDefault();busy(true);message('로그인 중입니다.');
+ try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);$('password').value='';}
+ catch(_){message('로그인에 실패했습니다. 이메일, 비밀번호 및 인증 설정을 확인하세요.');}
+ finally{busy(false);}
+});
+$('logoutBtn').addEventListener('click',async()=>{busy(true);try{await signOut(auth);message('로그아웃했습니다.');}catch(_){message('로그아웃에 실패했습니다.');}finally{busy(false);}});
+$('resetBtn').addEventListener('click',async()=>{
+ const email=$('email').value.trim();
+ if(!email){message('먼저 이메일을 입력해 주세요.');return;}
+ busy(true);try{await sendPasswordResetEmail(auth,email);message('계정이 등록되어 있다면 재설정 이메일이 발송됩니다.');}
+ catch(_){message('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');}finally{busy(false);}
+});
+$('verifyBtn').addEventListener('click',async()=>{
+ if(!auth.currentUser)return;
+ busy(true);try{await sendEmailVerification(auth.currentUser);message('인증 이메일 발송을 요청했습니다.');}
+ catch(_){message('인증 이메일을 발송하지 못했습니다. 잠시 후 다시 시도해 주세요.');}finally{busy(false);}
+});
+</script></body></html>
