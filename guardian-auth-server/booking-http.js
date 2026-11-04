@@ -23,7 +23,9 @@ function createGuardianBookingHttpHandler({authenticateGuardian,bookingRepositor
     if(typeof bookingRepository.findByCustomerId!=='function')throw Error('Unavailable');
     const principal=await authenticateGuardian(bearer[1]);
     if(!principal||principal.role!=='guardian'||!principal.customerId)throw Error('Access denied');
+    process.stderr.write('[guardian-test] LIST_SHEETS_START\n');
     const bookings=await bookingRepository.findByCustomerId(principal.customerId);
+    process.stderr.write('[guardian-test] LIST_SHEETS_OK\n');
     return send(200,{bookings:bookings.map(b=>({bookingId:b.bookingId,dogName:b.dogName,visitDate:b.visitDate,status:b.status}))});
    }
    const booking=await read({idToken:bearer[1],bookingId:match[1]});
