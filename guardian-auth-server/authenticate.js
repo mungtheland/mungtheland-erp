@@ -7,21 +7,23 @@
  * accountStore.findByFirebaseUid(uid) must return a trusted, server-maintained
  * mapping: {customerId, status:'active', email}. It must NOT use client input.
  */
-function createGuardianAuthenticator({firebaseAuth,accountStore,projectId}){
+function createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic}){
+ const diagnostic=code=>{if(typeof onDiagnostic==='function')try{onDiagnostic(code);}catch(_){/* diagnostics must not change auth */}};
  if(!firebaseAuth||typeof firebaseAuth.verifyIdToken!=='function')throw Error('Firebase verifier required');
  if(!accountStore||typeof accountStore.findByFirebaseUid!=='function')throw Error('Account mapping store required');
  if(typeof projectId!=='string'||!projectId.trim())throw Error('Firebase project ID required');
  return async function authenticateGuardian(idToken){
-  if(typeof idToken!=='string'||idToken.length<100||idToken.length>8192)throw Error('Authentication failed');
+  if(typeof idToken!=='string'||idToken.length<100||idToken.length>8192){diagnostic('TOKEN_FORMAT_INVALID');throw Error('Authentication failed');}
   let claims;
-  try{claims=await firebaseAuth.verifyIdToken(idToken,true);}catch(_){throw Error('Authentication failed');}
+  try{claims=await firebaseAuth.verifyIdToken(idToken,true);}catch(_){diagnostic('TOKEN_VERIFY_FAILED');throw Error('Authentication failed');}
   if(!claims||claims.aud!==projectId||claims.iss!==`https://securetoken.google.com/${projectId}`||
      !claims.sub||claims.sub!==claims.uid||claims.email_verified!==true||
      !claims.email||!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now()||
-     claims.firebase?.sign_in_provider==='anonymous')throw Error('Authentication failed');
-  const account=await accountStore.findByFirebaseUid(claims.uid);
+     claims.firebase?.sign_in_provider==='anonymous'){diagnostic('TOKEN_CLAIMS_INVALID');throw Error('Authentication failed');}
+  let account;
+  try{account=await accountStore.findByFirebaseUid(claims.uid);}catch(_){diagnostic('ACCOUNT_STORE_ERROR');throw Error('Authentication failed');}
   if(!account||account.status!=='active'||!account.customerId||
-     String(account.email).toLowerCase()!==String(claims.email).toLowerCase())throw Error('Authentication failed');
+     String(account.email).toLowerCase()!==String(claims.email).toLowerCase()){diagnostic('ACCOUNT_MAPPING_FAILED');throw Error('Authentication failed');}
   return Object.freeze({customerId:String(account.customerId),firebaseUid:claims.uid,role:'guardian'});
  };
 }
