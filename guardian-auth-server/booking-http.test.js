@@ -24,3 +24,32 @@ test('no bearer token denied',async()=>{const r=await call({authorization:''});a
 test('bad bearer token denied',async()=>{const r=await call({authorization:'Bearer invalid'});assert.equal(r.statusCode,403);});
 test('unsupported method denied',async()=>{const r=await call({method:'POST'});assert.equal(r.statusCode,405);});
 test('unknown route denied',async()=>{const r=await call({url:'/api/guardian/bookings/../../admin'});assert.equal(r.statusCode,404);});
+
+test('guardian booking list includes only owned records',async()=>{
+ const res=makeResponse();
+ const handler=createGuardianBookingHttpHandler({
+  authenticateGuardian:async()=>({role:'guardian',customerId:'CUS-TEST-001'}),
+  bookingRepository:{
+   findById:async()=>null,
+   findByCustomerId:async id=>id==='CUS-TEST-001'?[{bookingId:'RSV-TEST-001',dogName:'DOG-TEST-001',visitDate:'',status:'예약',internalNote:'secret'}]:[]
+  }
+ });
+ await handler({method:'GET',url:'/api/guardian/bookings',headers:{authorization:'Bearer token'}},res);
+ assert.equal(res.statusCode,200);
+ assert.deepEqual(res.body,{bookings:[{bookingId:'RSV-TEST-001',dogName:'DOG-TEST-001',visitDate:'',status:'예약'}]});
+});
+test('guardian list does not trust client supplied customer ID',async()=>{
+ const res=makeResponse();
+ let requestedCustomer;
+ const handler=createGuardianBookingHttpHandler({
+  authenticateGuardian:async()=>({role:'guardian',customerId:'CUS-TEST-OTHER'}),
+  bookingRepository:{
+   findById:async()=>null,
+   findByCustomerId:async id=>{requestedCustomer=id;return []}
+  }
+ });
+ await handler({method:'GET',url:'/api/guardian/bookings?customerId=CUS-TEST-001',headers:{authorization:'Bearer token'}},res);
+ assert.equal(res.statusCode,200);
+ assert.equal(requestedCustomer,'CUS-TEST-OTHER');
+ assert.deepEqual(res.body,{bookings:[]});
+});
