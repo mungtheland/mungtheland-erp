@@ -13,11 +13,18 @@ function createGuardianBookingHttpHandler({authenticateGuardian,bookingRepositor
   if(req.method!=='GET')return send(405,{error:'Method not allowed'});
   const url=new URL(req.url,'http://localhost');
   const match=/^\/api\/guardian\/bookings\/(RSV-[A-Z0-9-]{1,64})$/.exec(url.pathname);
-  if(!match)return send(404,{error:'Not found'});
+  if(!match&&!isList)return send(404,{error:'Not found'});
   const header=req.headers.authorization;
   const bearer=typeof header==='string'&&/^Bearer ([^\s]+)$/.exec(header);
   if(!bearer)return send(401,{error:'Authentication required'});
   try{
+   if(isList){
+    if(typeof bookingRepository.findByCustomerId!=='function')throw Error('Unavailable');
+    const principal=await authenticateGuardian(bearer[1]);
+    if(!principal||principal.role!=='guardian'||!principal.customerId)throw Error('Access denied');
+    const bookings=await bookingRepository.findByCustomerId(principal.customerId);
+    return send(200,{bookings:bookings.map(b=>({bookingId:b.bookingId,dogName:b.dogName,visitDate:b.visitDate,status:b.status}))});
+   }
    const booking=await read({idToken:bearer[1],bookingId:match[1]});
    return send(200,{booking});
   }catch(_){
