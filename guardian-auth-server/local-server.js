@@ -1,0 +1,68 @@
+'use strict';
+/**
+ * Loopback-only development API. Requires Application Default Credentials
+ * and a pre-provisioned, server-owned guardian mapping; never maps the
+ * currently logged-in user automatically.
+ */
+const http=require('node:http');
+const fs=require('node:fs');
+const path=require('node:path');
+const {createGuardianAuthenticator}=require('./authenticate');
+const {createGuardianBookingHttpHandler}=require('./booking-http');
+const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
+async function main(){
+ const {getAuth}=require('firebase-admin/auth');
+ const {initializeApp,applicationDefault}=require('firebase-admin/app');
+ const {google}=require('googleapis');
+ const projectId='mungtheland-guardian-test';
+ const uid=process.env.MD_TEST_GUARDIAN_UID;
+ const email=process.env.MD_TEST_GUARDIAN_EMAIL;
+ if(!uid||!email||!/^\S+@\S+\.\S+$/.test(email))throw Error('Explicit test UID and email are required');
+ if(process.env.GOOGLE_CLOUD_PROJECT!==projectId)throw Error('Wrong Google Cloud project');
+ const app=initializeApp({credential:applicationDefault(),projectId});
+ const firebaseAuth=getAuth(app);
+ const googleAuth=new google.auth.GoogleAuth({scopes:['https://www.googleapis.com/auth/spreadsheets.readonly']});
+ const sheets=google.sheets({version:'v4',auth:googleAuth});
+ // Optional second, independently authenticated test guardian for real cross-customer denial.
+ // This is an explicit, server-owned test mapping; never accept customerId from the browser.
+ const otherUid=process.env.MD_TEST_OTHER_GUARDIAN_UID;
+ const otherEmail=process.env.MD_TEST_OTHER_GUARDIAN_EMAIL;
+ if(Boolean(otherUid)!==Boolean(otherEmail))throw Error('Both secondary test UID and email are required');
+ if(otherUid&&(!/^\S+@\S+\.\S+$/.test(otherEmail)||otherUid===uid||
+    otherEmail.toLowerCase()===email.toLowerCase()))throw Error('Invalid secondary test guardian');
+ const accountStore={findByFirebaseUid:async candidate=>{
+  if(candidate===uid)return {customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'};
+  if(otherUid&&candidate===otherUid)return {customerId:'CUS-TEST-OTHER',email:otherEmail.toLowerCase(),status:'active'};
+  return null;
+ }};
+ const baseAuthenticate=createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic:code=>process.stderr.write('[guardian-test] '+code+'\n')});
+ const authenticateGuardian=async token=>{
+  try{return await baseAuthenticate(token);}catch(_){process.stderr.write('[guardian-test] AUTH_STAGE_FAILED (token verification or test mapping)\n');throw Error('Authentication failed');}
+ };
+ const baseRepository=createIsolatedSheetsBookingRepository({sheets,spreadsheetId:TEST_SPREADSHEET_ID});
+ const bookingRepository={findById:async bookingId=>{
+  try{const booking=await baseRepository.findById(bookingId);
+   process.stderr.write('[guardian-test] BOOKING_STAGE_'+(booking?'FOUND':'NOT_FOUND')+'\n');return booking;
+  }catch(_){process.stderr.write('[guardian-test] BOOKING_STAGE_ERROR (read-only Sheets access or schema)\n');throw Error('Booking lookup failed');}
+ }};
+ const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
+ const port=Number(process.env.PORT||8787);
+ if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
+ http.createServer((req,res)=>{
+  if(req.method==='GET'&&(req.url==='/local-test'||req.url==='/local-test?')){
+   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});
+   fs.createReadStream(path.join(__dirname,'local-test.html')).pipe(res);return;
+  }
+  if(req.method==='OPTIONS'&&req.headers.origin==='https://mungtheland-guardian-test.web.app'){
+   res.writeHead(204,{'Access-Control-Allow-Origin':'https://mungtheland-guardian-test.web.app','Access-Control-Allow-Methods':'GET, OPTIONS','Access-Control-Allow-Headers':'Authorization','Access-Control-Max-Age':'600','Vary':'Origin'});res.end();return;
+  }
+  res.setHeader('Access-Control-Allow-Origin','https://mungtheland-guardian-test.web.app');
+  res.setHeader('Vary','Origin');
+  if(req.headers.origin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
+   res.writeHead(403);res.end();return;
+  }
+  void handle(req,res).catch(()=>{if(!res.headersSent){res.writeHead(500,{'Cache-Control':'no-store'});}res.end();});
+ }).listen(port,'127.0.0.1',()=>{process.stdout.write('Isolated guardian API listening on 127.0.0.1:'+port+'\n');});
+}
+if(require.main===module)main().catch(err=>{process.stderr.write('Local API startup failed: '+err.message+'\n');process.exitCode=1;});
+module.exports={main};

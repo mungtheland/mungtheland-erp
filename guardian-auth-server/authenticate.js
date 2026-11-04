@@ -1,0 +1,36 @@
+'use strict';
+/**
+ * Server-side Firebase Authentication adapter (not an HTTP endpoint).
+ * Requires firebase-admin on a trusted Node.js server. Never ship this file
+ * or Admin SDK credentials to browser/Apps Script client code.
+ *
+ * accountStore.findByFirebaseUid(uid) must return a trusted, server-maintained
+ * mapping: {customerId, status:'active', email}. It must NOT use client input.
+ */
+function createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic}){
+ const diagnostic=code=>{if(typeof onDiagnostic==='function')try{onDiagnostic(code);}catch(_){/* diagnostics must not change auth */}};
+ if(!firebaseAuth||typeof firebaseAuth.verifyIdToken!=='function')throw Error('Firebase verifier required');
+ if(!accountStore||typeof accountStore.findByFirebaseUid!=='function')throw Error('Account mapping store required');
+ if(typeof projectId!=='string'||!projectId.trim())throw Error('Firebase project ID required');
+ return async function authenticateGuardian(idToken){
+  if(typeof idToken!=='string'||idToken.length<100||idToken.length>8192){diagnostic('TOKEN_FORMAT_INVALID');throw Error('Authentication failed');}
+  let claims;
+  try{claims=await firebaseAuth.verifyIdToken(idToken,true);}catch(error){
+   diagnostic('TOKEN_VERIFY_FAILED');
+   // Diagnostic codes only; never log the error message, stack, token, UID, or email.
+   const code=typeof error?.code==='string'?error.code.replace(/[^a-zA-Z0-9/_-]/g,'').slice(0,80):'UNKNOWN';
+   diagnostic('FIREBASE_ERROR_CODE_'+(code||'UNKNOWN'));
+   throw Error('Authentication failed');
+  }
+  if(!claims||claims.aud!==projectId||claims.iss!==`https://securetoken.google.com/${projectId}`||
+     !claims.sub||claims.sub!==claims.uid||claims.email_verified!==true||
+     !claims.email||!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now()||
+     claims.firebase?.sign_in_provider==='anonymous'){diagnostic('TOKEN_CLAIMS_INVALID');throw Error('Authentication failed');}
+  let account;
+  try{account=await accountStore.findByFirebaseUid(claims.uid);}catch(_){diagnostic('ACCOUNT_STORE_ERROR');throw Error('Authentication failed');}
+  if(!account||account.status!=='active'||!account.customerId||
+     String(account.email).toLowerCase()!==String(claims.email).toLowerCase()){diagnostic('ACCOUNT_MAPPING_FAILED');throw Error('Authentication failed');}
+  return Object.freeze({customerId:String(account.customerId),firebaseUid:claims.uid,role:'guardian'});
+ };
+}
+module.exports={createGuardianAuthenticator};
