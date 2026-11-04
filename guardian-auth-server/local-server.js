@@ -25,8 +25,16 @@ async function main(){
  const sheets=google.sheets({version:'v4',auth:googleAuth});
  const accountStore={findByFirebaseUid:async candidate=>
   candidate===uid?{customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'}:null};
- const authenticateGuardian=createGuardianAuthenticator({firebaseAuth,accountStore,projectId});
- const bookingRepository=createIsolatedSheetsBookingRepository({sheets,spreadsheetId:TEST_SPREADSHEET_ID});
+ const baseAuthenticate=createGuardianAuthenticator({firebaseAuth,accountStore,projectId});
+ const authenticateGuardian=async token=>{
+  try{return await baseAuthenticate(token);}catch(_){process.stderr.write('[guardian-test] AUTH_STAGE_FAILED (token verification or test mapping)\n');throw Error('Authentication failed');}
+ };
+ const baseRepository=createIsolatedSheetsBookingRepository({sheets,spreadsheetId:TEST_SPREADSHEET_ID});
+ const bookingRepository={findById:async bookingId=>{
+  try{const booking=await baseRepository.findById(bookingId);
+   process.stderr.write('[guardian-test] BOOKING_STAGE_'+(booking?'FOUND':'NOT_FOUND')+'\n');return booking;
+  }catch(_){process.stderr.write('[guardian-test] BOOKING_STAGE_ERROR (read-only Sheets access or schema)\n');throw Error('Booking lookup failed');}
+ }};
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const port=Number(process.env.PORT||8787);
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
