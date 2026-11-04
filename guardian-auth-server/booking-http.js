@@ -21,7 +21,9 @@ function createGuardianBookingHttpHandler({authenticateGuardian,bookingRepositor
   try{
    if(isList){
     if(typeof bookingRepository.findByCustomerId!=='function')throw Error('Unavailable');
+    process.stderr.write('[guardian-test] LIST_AUTH_START\n');
     const principal=await authenticateGuardian(bearer[1]);
+    process.stderr.write('[guardian-test] LIST_AUTH_OK\n');
     if(!principal||principal.role!=='guardian'||!principal.customerId)throw Error('Access denied');
     process.stderr.write('[guardian-test] LIST_SHEETS_START\n');
     const bookings=await bookingRepository.findByCustomerId(principal.customerId);
@@ -31,6 +33,7 @@ function createGuardianBookingHttpHandler({authenticateGuardian,bookingRepositor
    const booking=await read({idToken:bearer[1],bookingId:match[1]});
    return send(200,{booking});
   }catch(_){
+   if(isList)process.stderr.write('[guardian-test] LIST_STAGE_FAILED\n');
    // Deliberately avoid leaking account/booking existence or stack traces.
    return send(403,{error:'Access denied'});
   }
