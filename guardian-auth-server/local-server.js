@@ -28,7 +28,7 @@ async function main(){
  const otherUid=process.env.MD_TEST_OTHER_GUARDIAN_UID;
  const otherEmail=process.env.MD_TEST_OTHER_GUARDIAN_EMAIL;
  if(Boolean(otherUid)!==Boolean(otherEmail))throw Error('Both secondary test UID and email are required');
- if(otherUid&&(!/^\\S+@\\S+\\.\\S+$/.test(otherEmail)||otherUid===uid||
+ if(otherUid&&(!/^\S+@\S+\.\S+$/.test(otherEmail)||otherUid===uid||
     otherEmail.toLowerCase()===email.toLowerCase()))throw Error('Invalid secondary test guardian');
  const accountStore={findByFirebaseUid:async candidate=>{
   if(candidate===uid)return {customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'};
