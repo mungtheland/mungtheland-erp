@@ -12,6 +12,7 @@ function createGuardianBookingHttpHandler({authenticateGuardian,bookingRepositor
   const send=(code,body)=>{res.statusCode=code;res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.end(JSON.stringify(body));};
   if(req.method!=='GET')return send(405,{error:'Method not allowed'});
   const url=new URL(req.url,'http://localhost');
+  const isList=url.pathname==='/api/guardian/bookings';
   const match=/^\/api\/guardian\/bookings\/(RSV-[A-Z0-9-]{1,64})$/.exec(url.pathname);
   if(!match&&!isList)return send(404,{error:'Not found'});
   const header=req.headers.authorization;
