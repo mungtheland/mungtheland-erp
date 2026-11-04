@@ -51,17 +51,18 @@ async function loadBookings(){
    const save=document.createElement('button');save.type='submit';save.textContent='요청사항 저장';form.append(save);
    const msg=document.createElement('p');msg.className='arrival-message';form.append(msg);
    const url='/api/guardian/bookings/'+encodeURIComponent(b.bookingId)+'/arrival-request';
+   let loadedRevision=null;
    toggle.addEventListener('click',async()=>{
     form.hidden=!form.hidden;if(form.hidden)return;
     msg.textContent='기존 요청 조회 중';
     try{const token=await auth.currentUser.getIdToken();const response=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await response.json();if(!response.ok)throw Error('조회 거부');
-     const v=data.request;if(v){time.value=v.mealTime||'';food.value=v.foodProvided||'unknown';belt.value=v.mannerBelt||'unknown';condition.value=v.condition||'';notes.value=v.notes||'';}
+     const v=data.request;loadedRevision=v?Number(v.revision):0;if(v){time.value=v.mealTime||'';food.value=v.foodProvided||'unknown';belt.value=v.mannerBelt||'unknown';condition.value=v.condition||'';notes.value=v.notes||'';}
      msg.textContent=v?'저장된 요청을 불러왔습니다.':'아직 작성된 요청이 없습니다.';
     }catch(_){msg.textContent='요청 조회에 실패했습니다.';}
    });
    form.addEventListener('submit',async event=>{
-    event.preventDefault();save.disabled=true;msg.textContent='저장 중';
-    try{const token=await auth.currentUser.getIdToken();const response=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({mealTime:time.value,foodProvided:food.value,mannerBelt:belt.value,condition:condition.value,notes:notes.value})});const data=await response.json();msg.textContent=response.ok?'저장 완료 (revision '+data.revision+')':response.status===503?'격리 테스트 쓰기 권한을 활성화해야 합니다.':'저장 거부: 권한 또는 입력 내용을 확인하세요.';}catch(_){msg.textContent='저장 실패: 서버 연결을 확인하세요.';}finally{save.disabled=false;}
+    event.preventDefault();if(loadedRevision===null){msg.textContent='먼저 요청사항을 조회해 주세요.';return;}save.disabled=true;msg.textContent='저장 중';
+    try{const token=await auth.currentUser.getIdToken();const response=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({mealTime:time.value,foodProvided:food.value,mannerBelt:belt.value,condition:condition.value,notes:notes.value,expectedRevision:loadedRevision})});const data=await response.json();if(response.ok)loadedRevision=Number(data.revision);msg.textContent=response.ok?'저장 완료 (revision '+data.revision+')':response.status===409?'다른 화면에서 먼저 수정되었습니다. 다시 조회한 뒤 저장해 주세요.':response.status===503?'격리 테스트 쓰기 권한을 활성화해야 합니다.':'저장 거부: 권한 또는 입력 내용을 확인하세요.';}catch(_){msg.textContent='저장 실패: 서버 연결을 확인하세요.';}finally{save.disabled=false;}
    });
    card.append(status,name,details,toggle,form);root.append(card);
   }
