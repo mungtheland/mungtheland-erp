@@ -40,7 +40,7 @@ async function main(){
   try{return await baseAuthenticate(token);}catch(_){process.stderr.write('[guardian-test] AUTH_STAGE_FAILED (token verification or test mapping)\n');throw Error('Authentication failed');}
  };
  const baseRepository=createIsolatedSheetsBookingRepository({sheets,spreadsheetId:TEST_SPREADSHEET_ID});
- const bookingRepository={findById:async bookingId=>{
+ const bookingRepository={findByCustomerId:async customerId=>baseRepository.findByCustomerId(customerId),findById:async bookingId=>{
   try{const booking=await baseRepository.findById(bookingId);
    process.stderr.write('[guardian-test] BOOKING_STAGE_'+(booking?'FOUND':'NOT_FOUND')+'\n');return booking;
   }catch(_){process.stderr.write('[guardian-test] BOOKING_STAGE_ERROR (read-only Sheets access or schema)\n');throw Error('Booking lookup failed');}
