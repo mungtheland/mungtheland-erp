@@ -29,7 +29,7 @@ function createIsolatedSheetsBookingRepository({sheets,spreadsheetId=TEST_SPREAD
    for(const row of bookings.slice(1))if(row[0])bookingCounts.set(row[0],(bookingCounts.get(row[0])||0)+1);
    return bookings.slice(1).filter(row=>/^RSV-[A-Z0-9-]{1,64}$/.test(row[0]||'')&&
      bookingCounts.get(row[0])===1&&!ambiguousDogs.has(row[2])&&dogOwners.get(row[2])===customerId)
-    .map(row=>({bookingId:row[0],dogName:row[2],visitDate:'',status:row[5]||''}));
+    .map(row=>({bookingId:row[0],dogName:dogs.slice(1).find(d=>d[0]===row[2])?.[4]||row[2],visitDate:row[1]||'',status:row[5]||''}));
   },
   async findById(bookingId){
    if(typeof bookingId!=='string'||!/^RSV-[A-Z0-9-]{1,64}$/.test(bookingId))return null;
@@ -41,9 +41,8 @@ function createIsolatedSheetsBookingRepository({sheets,spreadsheetId=TEST_SPREAD
    const dogs=await readRows(TEST_DOGS);
    const linked=dogs.slice(1).filter(row=>row[0]===dogId);
    if(linked.length!==1||!linked[0][1])return null;
-   // Column positions are grounded in the isolated GuardianRequest test schema.
-   // Avoid guessing the date/name columns until their headers are verified.
-   return {bookingId,customerId:linked[0][1],dogName:dogId,visitDate:'',status:booking[5]||''};
+   // Verified isolated headers: booking B=visit date, C=dog ID, F=status; dog E=name.
+   return {bookingId,customerId:linked[0][1],dogName:linked[0][4]||dogId,visitDate:booking[1]||'',status:booking[5]||''};
   }
  };
 }
