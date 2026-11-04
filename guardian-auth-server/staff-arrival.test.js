@@ -23,12 +23,12 @@ test('staff sees request without guardian credentials',async()=>{
  const {service}=fixture();const r=await service.get(staff,bookingId);
  assert.equal(r.notes,'notes');assert.equal(r.revision,4);assert.equal(r.acknowledgedAt,null);
 });
-test('acknowledgment writes only L:M after matching revision',async()=>{
+test('acknowledgment writes only L:N after matching revision',async()=>{
  const {service,writes}=fixture();
  await assert.rejects(service.acknowledge(staff,bookingId,3),/Revision conflict/);
  assert.equal(writes.length,0);
  const result=await service.acknowledge(staff,bookingId,4);
  assert.equal(result.acknowledgedBy,'STAFF-TEST-001');
- assert.match(writes[0].range,/!L2:M2$/);
- assert.deepEqual(writes[0].requestBody.values,[['2026-11-04T03:00:00.000Z','STAFF-TEST-001']]);
+ assert.match(writes[0].range,/!L2:N2$/);
+ assert.deepEqual(writes[0].requestBody.values,[[4,'STAFF-TEST-001','2026-11-04T03:00:00.000Z']]);
 });
