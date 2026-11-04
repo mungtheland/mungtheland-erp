@@ -29,7 +29,7 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
    if(!found.length)return null;
    const r=found[0];
    if(r[3]!==customerId)throw Error('Access denied');
-   return {mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0)};
+   return {mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0),reviewedRevision:Number(r[11]||0),reviewStatus:Number(r[11]||0)===Number(r[9]||0)?'confirmed':'unconfirmed'};
   },
   async save(customerId,bookingId,data){
    await owned(customerId,bookingId);
@@ -40,15 +40,18 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
    const existing=matches[0];
    if(existing&&existing.values[3]!==customerId)throw Error('Access denied');
    const revision=Number(existing?.values[9]||0)+1;
-   const bookingRows=await sheets.spreadsheets.values.get({spreadsheetId,range:"'예약·등하원관리'!A1:C200"});
+   const bookingRows=await sheets.spreadsheets.values.get({spreadsheetId,range:"'예약·등하원관리'!A1:K200"});
    const matched=(bookingRows.data.values||[]).slice(1).filter(r=>r[0]===bookingId);
    if(matched.length!==1)throw Error('Access denied');
-   const dogId=matched[0][2];
+   const booking=matched[0];
+   // Check status server-side, not just in the browser. G/H are actual attendance timestamps; I is attendance state.
+   if(booking[6]||booking[7]||booking[8]!=='미등원'||booking[5]!=='예약')throw Error('Request locked after check-in or cancellation');
+   const dogId=booking[2];
    const requestId=existing?.values[0]||('REQ-TEST-'+bookingId.slice(4));
    const values=[[requestId,bookingId,dogId,customerId,v.mealTime,v.food,v.belt,v.condition,v.notes,String(revision),new Date().toISOString(),'','','']];
    if(existing){
-    // Prevent overwriting an already acknowledged request. Staff acknowledgment must be handled separately.
-    if(existing.values[11])throw Error('Staff acknowledged; editing locked');
+    // A policy: guardian may edit before check-in; any edit clears staff review (L:N).
+    // Revision increments so staff must explicitly review the latest submission.
     await sheets.spreadsheets.values.update({spreadsheetId,range:TAB+'!A'+existing.row+':N'+existing.row,valueInputOption:'RAW',requestBody:{values}});
    }else{
     await sheets.spreadsheets.values.append({spreadsheetId,range:TAB+'!A1:N200',valueInputOption:'RAW',insertDataOption:'INSERT_ROWS',requestBody:{values}});
