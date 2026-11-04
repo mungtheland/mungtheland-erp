@@ -31,7 +31,8 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
    if(r[3]!==customerId)throw Error('Access denied');
    return {mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0),reviewedRevision:Number(r[11]||0),reviewStatus:Number(r[11]||0)===Number(r[9]||0)?'confirmed':'unconfirmed'};
   },
-  async save(customerId,bookingId,data){
+  async save(customerId,bookingId,data,expectedRevision){
+   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('Invalid expected revision');
    await owned(customerId,bookingId);
    const v=validate(data);
    const all=await rows(),matches=[];
@@ -39,7 +40,9 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
    if(matches.length>1)throw Error('Conflicting requests');
    const existing=matches[0];
    if(existing&&existing.values[3]!==customerId)throw Error('Access denied');
-   const revision=Number(existing?.values[9]||0)+1;
+   const currentRevision=Number(existing?.values[9]||0);
+   if(currentRevision!==expectedRevision)throw Error('Revision conflict');
+   const revision=currentRevision+1;
    const bookingRows=await sheets.spreadsheets.values.get({spreadsheetId,range:"'예약·등하원관리'!A1:K200"});
    const matched=(bookingRows.data.values||[]).slice(1).filter(r=>r[0]===bookingId);
    if(matched.length!==1)throw Error('Access denied');
