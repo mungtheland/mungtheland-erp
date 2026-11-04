@@ -15,7 +15,13 @@ function createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiag
  return async function authenticateGuardian(idToken){
   if(typeof idToken!=='string'||idToken.length<100||idToken.length>8192){diagnostic('TOKEN_FORMAT_INVALID');throw Error('Authentication failed');}
   let claims;
-  try{claims=await firebaseAuth.verifyIdToken(idToken,true);}catch(_){diagnostic('TOKEN_VERIFY_FAILED');throw Error('Authentication failed');}
+  try{claims=await firebaseAuth.verifyIdToken(idToken,true);}catch(error){
+   diagnostic('TOKEN_VERIFY_FAILED');
+   // Diagnostic codes only; never log the error message, stack, token, UID, or email.
+   const code=typeof error?.code==='string'?error.code.replace(/[^a-zA-Z0-9/_-]/g,'').slice(0,80):'UNKNOWN';
+   diagnostic('FIREBASE_ERROR_CODE_'+(code||'UNKNOWN'));
+   throw Error('Authentication failed');
+  }
   if(!claims||claims.aud!==projectId||claims.iss!==`https://securetoken.google.com/${projectId}`||
      !claims.sub||claims.sub!==claims.uid||claims.email_verified!==true||
      !claims.email||!Number.isFinite(claims.exp)||claims.exp*1000<=Date.now()||
