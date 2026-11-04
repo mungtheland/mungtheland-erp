@@ -23,8 +23,18 @@ async function main(){
  const firebaseAuth=getAuth(app);
  const googleAuth=new google.auth.GoogleAuth({scopes:['https://www.googleapis.com/auth/spreadsheets.readonly']});
  const sheets=google.sheets({version:'v4',auth:googleAuth});
- const accountStore={findByFirebaseUid:async candidate=>
-  candidate===uid?{customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'}:null};
+ // Optional second, independently authenticated test guardian for real cross-customer denial.
+ // This is an explicit, server-owned test mapping; never accept customerId from the browser.
+ const otherUid=process.env.MD_TEST_OTHER_GUARDIAN_UID;
+ const otherEmail=process.env.MD_TEST_OTHER_GUARDIAN_EMAIL;
+ if(Boolean(otherUid)!==Boolean(otherEmail))throw Error('Both secondary test UID and email are required');
+ if(otherUid&&(!/^\\S+@\\S+\\.\\S+$/.test(otherEmail)||otherUid===uid||
+    otherEmail.toLowerCase()===email.toLowerCase()))throw Error('Invalid secondary test guardian');
+ const accountStore={findByFirebaseUid:async candidate=>{
+  if(candidate===uid)return {customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'};
+  if(otherUid&&candidate===otherUid)return {customerId:'CUS-TEST-OTHER',email:otherEmail.toLowerCase(),status:'active'};
+  return null;
+ }};
  const baseAuthenticate=createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic:code=>process.stderr.write('[guardian-test] '+code+'\n')});
  const authenticateGuardian=async token=>{
   try{return await baseAuthenticate(token);}catch(_){process.stderr.write('[guardian-test] AUTH_STAGE_FAILED (token verification or test mapping)\n');throw Error('Authentication failed');}
