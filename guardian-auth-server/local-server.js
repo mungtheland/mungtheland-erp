@@ -25,7 +25,7 @@ async function main(){
  const sheets=google.sheets({version:'v4',auth:googleAuth});
  const accountStore={findByFirebaseUid:async candidate=>
   candidate===uid?{customerId:'CUS-TEST-001',email:email.toLowerCase(),status:'active'}:null};
- const baseAuthenticate=createGuardianAuthenticator({firebaseAuth,accountStore,projectId});
+ const baseAuthenticate=createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic:code=>process.stderr.write('[guardian-test] '+code+'\n')});
  const authenticateGuardian=async token=>{
   try{return await baseAuthenticate(token);}catch(_){process.stderr.write('[guardian-test] AUTH_STAGE_FAILED (token verification or test mapping)\n');throw Error('Authentication failed');}
  };
