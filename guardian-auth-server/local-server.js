@@ -9,6 +9,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {createGuardianAuthenticator}=require('./authenticate');
 const {createGuardianBookingHttpHandler}=require('./booking-http');
+const {createArrivalRequestService}=require('./arrival-request');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 async function main(){
  const {getAuth}=require('firebase-admin/auth');
@@ -21,7 +22,8 @@ async function main(){
  if(process.env.GOOGLE_CLOUD_PROJECT!==projectId)throw Error('Wrong Google Cloud project');
  const app=initializeApp({credential:applicationDefault(),projectId});
  const firebaseAuth=getAuth(app);
- const googleAuth=new google.auth.GoogleAuth({scopes:['https://www.googleapis.com/auth/spreadsheets.readonly']});
+ const arrivalWriteEnabled=process.env.MD_TEST_ARRIVAL_WRITE==='enabled';
+ const googleAuth=new google.auth.GoogleAuth({scopes:[arrivalWriteEnabled?'https://www.googleapis.com/auth/spreadsheets':'https://www.googleapis.com/auth/spreadsheets.readonly']});
  const sheets=google.sheets({version:'v4',auth:googleAuth});
  // Optional second, independently authenticated test guardian for real cross-customer denial.
  // This is an explicit, server-owned test mapping; never accept customerId from the browser.
@@ -46,6 +48,27 @@ async function main(){
   }catch(_){process.stderr.write('[guardian-test] BOOKING_STAGE_ERROR (read-only Sheets access or schema)\n');throw Error('Booking lookup failed');}
  }};
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
+ const arrival=createArrivalRequestService({sheets,bookingRepository});
+ async function handleArrival(req,res){
+  const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
+  const match=/^\/api\/guardian\/bookings\/(RSV-[A-Z0-9-]{1,64})\/arrival-request$/.exec(new URL(req.url,'http://localhost').pathname);
+  if(!match)return false;
+  if(!['GET','PUT'].includes(req.method)){send(405,{error:'Method not allowed'});return true;}
+  const bearer=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||'');
+  if(!bearer){send(401,{error:'Authentication required'});return true;}
+  try{
+   const principal=await authenticateGuardian(bearer[1]);
+   if(!principal||principal.role!=='guardian'||!principal.customerId)throw Error('Access denied');
+   if(req.method==='GET'){send(200,{request:await arrival.get(principal.customerId,match[1])});return true;}
+   if(!arrivalWriteEnabled){send(503,{error:'Test write not enabled'});return true;}
+   let raw='';
+   for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw Error('Payload too large');}
+   const data=JSON.parse(raw);
+   const result=await arrival.save(principal.customerId,match[1],data);
+   send(200,result);
+  }catch(_){process.stderr.write('[guardian-test] ARRIVAL_REQUEST_FAILED\n');send(403,{error:'Access denied or request rejected'});}
+  return true;
+ }
  const port=Number(process.env.PORT||8787);
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
  http.createServer((req,res)=>{
@@ -60,6 +83,9 @@ async function main(){
   res.setHeader('Vary','Origin');
   if(req.headers.origin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
    res.writeHead(403);res.end();return;
+  }
+  if(/^\/api\/guardian\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\?|$)/.test(req.url)){
+   void handleArrival(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;
   }
   void handle(req,res).catch(()=>{if(!res.headersSent){res.writeHead(500,{'Cache-Control':'no-store'});}res.end();});
  }).listen(port,'127.0.0.1',()=>{process.stdout.write('Isolated guardian API listening on 127.0.0.1:'+port+'\n');});
