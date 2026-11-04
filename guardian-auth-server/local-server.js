@@ -5,6 +5,8 @@
  * currently logged-in user automatically.
  */
 const http=require('node:http');
+const fs=require('node:fs');
+const path=require('node:path');
 const {createGuardianAuthenticator}=require('./authenticate');
 const {createGuardianBookingHttpHandler}=require('./booking-http');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
@@ -29,6 +31,13 @@ async function main(){
  const port=Number(process.env.PORT||8787);
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
  http.createServer((req,res)=>{
+  if(req.method==='GET'&&req.url==='/local-test'){
+   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});
+   fs.createReadStream(path.join(__dirname,'local-test.html')).pipe(res);return;
+  }
+  if(req.method==='OPTIONS'&&req.headers.origin==='https://mungtheland-guardian-test.web.app'){
+   res.writeHead(204,{'Access-Control-Allow-Origin':'https://mungtheland-guardian-test.web.app','Access-Control-Allow-Methods':'GET, OPTIONS','Access-Control-Allow-Headers':'Authorization','Access-Control-Max-Age':'600','Vary':'Origin'});res.end();return;
+  }
   res.setHeader('Access-Control-Allow-Origin','https://mungtheland-guardian-test.web.app');
   res.setHeader('Vary','Origin');
   if(req.headers.origin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
