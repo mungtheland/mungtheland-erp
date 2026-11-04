@@ -81,7 +81,10 @@ async function main(){
   }
   res.setHeader('Access-Control-Allow-Origin','https://mungtheland-guardian-test.web.app');
   res.setHeader('Vary','Origin');
-  if(req.headers.origin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
+  // Browsers send Origin on same-origin PUT requests. Accept only this loopback origin
+  // or the explicitly allowed test Hosting origin; do not allow arbitrary origins.
+  const localOrigin='http://127.0.0.1:'+port;
+  if(req.headers.origin&&req.headers.origin!==localOrigin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
    res.writeHead(403);res.end();return;
   }
   if(/^\/api\/guardian\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\?|$)/.test(req.url)){
