@@ -64,9 +64,9 @@ async function main(){
    let raw='';
    for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw Error('Payload too large');}
    const data=JSON.parse(raw);
-   const result=await arrival.save(principal.customerId,match[1],data);
+   const result=await arrival.save(principal.customerId,match[1],data,data.expectedRevision);
    send(200,result);
-  }catch(_){process.stderr.write('[guardian-test] ARRIVAL_REQUEST_FAILED\n');send(403,{error:'Access denied or request rejected'});}
+  }catch(err){process.stderr.write('[guardian-test] ARRIVAL_REQUEST_FAILED\n');if(err.message==='Revision conflict'){send(409,{error:'Revision conflict'});}else{send(403,{error:'Access denied or request rejected'});}}
   return true;
  }
  const port=Number(process.env.PORT||8787);
