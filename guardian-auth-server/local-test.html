@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>멍더랜드 로컬 예약 인증 테스트</title>
+<style>body{font:16px system-ui,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;color:#24382d}input,button{font:inherit;padding:10px;width:100%;box-sizing:border-box;margin:6px 0 14px}button{background:#276b4c;color:white;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.6}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f5f3;padding:14px;border-radius:8px}.note{color:#735719}</style></head><body>
+<h1>멍더랜드 예약 조회 · 로컬 테스트</h1>
+<p class="note">127.0.0.1에서만 실행하는 개발 도구입니다. 테스트 계정만 사용하세요. 토큰은 화면이나 콘솔에 출력하지 않습니다.</p>
+<form id="login"><label>테스트 이메일<input id="email" type="email" autocomplete="username" required></label><label>비밀번호<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Firebase 로그인</button></form>
+<p id="who">로그인 확인 중…</p><button id="read" disabled>RSV-TEST-001 예약 조회</button><button id="logout" disabled>로그아웃</button>
+<pre id="result" role="status">테스트 대기 중</pre>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+const app=initializeApp({apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',authDomain:'mungtheland-guardian-test.firebaseapp.com',projectId:'mungtheland-guardian-test',appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'});
+const auth=getAuth(app),$=id=>document.getElementById(id);
+const output=x=>{$('result').textContent=x};
+onAuthStateChanged(auth,user=>{$('login').hidden=!!user;$('who').textContent=user?'로그인됨 / 이메일 인증: '+(user.emailVerified?'완료':'미완료'):'로그인 필요';$('read').disabled=!user;$('logout').disabled=!user;});
+$('login').addEventListener('submit',async e=>{e.preventDefault();output('로그인 확인 중');try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);output('로그인 성공. 예약 조회 버튼을 누르세요.')}catch(_){output('로그인 실패. 테스트 계정 및 설정을 확인하세요.')}finally{$('password').value=''}});
+$('read').addEventListener('click',async()=>{const user=auth.currentUser;if(!user)return; $('read').disabled=true;output('예약 조회 중');try{const token=await user.getIdToken();const r=await fetch('/api/guardian/bookings/RSV-TEST-001',{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await r.json();output('HTTP '+r.status+'\n'+JSON.stringify(data,null,2));}catch(_){output('요청 실패. 로컬 서버 및 네트워크 상태를 확인하세요.')}finally{$('read').disabled=!auth.currentUser}});
+$('logout').addEventListener('click',async()=>{await signOut(auth);output('로그아웃 완료')});
+</script></body></html>
