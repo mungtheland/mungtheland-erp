@@ -8,6 +8,8 @@
 <p id="who">로그인 확인 중…</p><button id="read" disabled>내 예약 목록 새로고침</button><button id="logout" disabled>로그아웃</button>
 <button id="cross-check" disabled type="button">다른 보호자 예약 접근 차단 테스트</button>
 <p id="cross-check-result" role="status" aria-live="polite"></p>
+<button id="arrival-cross-check" disabled type="button">다른 보호자 등원 요청사항 접근 차단 테스트</button>
+<p id="arrival-cross-check-result" role="status" aria-live="polite"></p>
 <div id="result" role="status">테스트 대기 중</div>
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
@@ -15,7 +17,7 @@ import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'htt
 const app=initializeApp({apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',authDomain:'mungtheland-guardian-test.firebaseapp.com',projectId:'mungtheland-guardian-test',appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'});
 const auth=getAuth(app),$=id=>document.getElementById(id);
 const output=x=>{$('result').replaceChildren(document.createTextNode(x))};
-onAuthStateChanged(auth,user=>{$('login').hidden=!!user;$('who').textContent=user?'로그인됨 / 이메일: '+(user.email||'미등록')+' / 이메일 인증: '+(user.emailVerified?'완료':'미완료'):'로그인 필요';$('read').disabled=!user;$('logout').disabled=!user;$('cross-check').disabled=!user;$('cross-check-result').textContent='';if(user)void loadBookings();else output('로그인 후 내 예약 목록이 표시됩니다.');});
+onAuthStateChanged(auth,user=>{$('login').hidden=!!user;$('who').textContent=user?'로그인됨 / 이메일: '+(user.email||'미등록')+' / 이메일 인증: '+(user.emailVerified?'완료':'미완료'):'로그인 필요';$('read').disabled=!user;$('logout').disabled=!user;$('cross-check').disabled=!user;$('cross-check-result').textContent='';$('arrival-cross-check').disabled=!user;$('arrival-cross-check-result').textContent='';if(user)void loadBookings();else output('로그인 후 내 예약 목록이 표시됩니다.');});
 $('login').addEventListener('submit',async e=>{e.preventDefault();output('로그인 확인 중');try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);output('로그인 성공. 내 예약을 불러옵니다.')}catch(_){output('로그인 실패. 테스트 계정 및 설정을 확인하세요.')}finally{$('password').value=''}});
 async function loadBookings(){
  const user=auth.currentUser;if(!user)return;
@@ -84,6 +86,36 @@ $('cross-check').addEventListener('click',async()=>{
    result.textContent='HTTP '+response.status+': 예상 외 응답입니다. 서버 설정을 확인하세요.';
   }
  }catch(_){result.textContent='요청 실패: 서버 연결 또는 인증 상태를 확인하세요.';}
+ finally{button.disabled=!auth.currentUser;}
+});
+$('arrival-cross-check').addEventListener('click',async()=>{
+ const button=$('arrival-cross-check'),result=$('arrival-cross-check-result'),user=auth.currentUser;
+ if(!user){result.textContent='로그인이 필요합니다.';return;}
+ button.disabled=true;result.textContent='등원 요청사항 조회 및 수정 권한 검사 중…';
+ const url='/api/guardian/bookings/RSV-TEST-001/arrival-request';
+ try{
+  const token=await user.getIdToken();
+  const headers={Authorization:'Bearer '+token};
+  const read=await fetch(url,{method:'GET',headers,cache:'no-store'});
+  if(read.status!==403){
+   result.textContent='조회 HTTP '+read.status+': 접근 차단 실패 또는 예상 외 응답. 수정 요청은 실행하지 않았습니다.';
+   return;
+  }
+  // Isolated test booking only. A valid write body is needed to distinguish ownership rejection from input validation.
+  const write=await fetch(url,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({
+   mealTime:'12:30',foodProvided:'yes',mannerBelt:'yes',condition:'security authorization test',
+   notes:'cross-guardian write denial test - SHOULD NOT SAVE'
+  }),cache:'no-store'});
+  if(write.status===403){
+   result.textContent='조회 HTTP 403 / 수정 HTTP 403: 두 번째 보호자 계정에서 실행했다면 요청사항 접근 차단 통과입니다.';
+  }else if(write.status===503){
+   result.textContent='조회 HTTP 403 / 수정 HTTP 503: 조회 차단 통과, 수정은 서버 쓰기 비활성화로 권한 검증 불가.';
+  }else if(write.status===200){
+   result.textContent='위험: 수정 HTTP 200. 다른 보호자 요청사항이 변경됐을 수 있습니다. 서버를 중지하고 즉시 확인하세요.';
+  }else{
+   result.textContent='조회 HTTP 403 / 수정 HTTP '+write.status+': 수정 권한 차단 여부 추가 확인 필요.';
+  }
+ }catch(_){result.textContent='테스트 요청 실패. 서버 연결 및 인증 상태를 확인하세요.';}
  finally{button.disabled=!auth.currentUser;}
 });
 $('logout').addEventListener('click',async()=>{await signOut(auth);output('로그아웃 완료')});
