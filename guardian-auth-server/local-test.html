@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>멍더랜드 로컬 예약 인증 테스트</title>
-<style>body{font:16px system-ui,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;color:#24382d}input,button{font:inherit;padding:10px;width:100%;box-sizing:border-box;margin:6px 0 14px}button{background:#276b4c;color:white;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.6}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f5f3;padding:14px;border-radius:8px}.note{color:#735719} .booking-card{border:1px solid #dce6df;border-radius:10px;padding:16px;margin:12px 0;background:#fff}.booking-card strong{font-size:18px}.booking-card dl{display:grid;grid-template-columns:100px 1fr;gap:8px;margin:12px 0 0}.booking-card dt{color:#596a60}.booking-card dd{margin:0}.booking-status{float:right;color:#276b4c;font-weight:700}#result:empty{display:none}</style></head><body>
+<style>body{font:16px system-ui,sans-serif;max-width:520px;margin:40px auto;padding:0 16px;color:#24382d}input,button{font:inherit;padding:10px;width:100%;box-sizing:border-box;margin:6px 0 14px}button{background:#276b4c;color:white;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.6}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f5f3;padding:14px;border-radius:8px}.note{color:#735719} .booking-card{border:1px solid #dce6df;border-radius:10px;padding:16px;margin:12px 0;background:#fff}.booking-card strong{font-size:18px}.booking-card dl{display:grid;grid-template-columns:100px 1fr;gap:8px;margin:12px 0 0}.booking-card dt{color:#596a60}.booking-card dd{margin:0}.booking-status{float:right;color:#276b4c;font-weight:700}#result:empty{display:none} .arrival-form{display:grid;gap:8px;margin-top:16px}.arrival-form label{font-size:14px}.arrival-form textarea,.arrival-form select,.arrival-form input{width:100%;box-sizing:border-box;margin:4px 0 8px;padding:8px}.arrival-form button{margin:4px 0}.arrival-message{font-size:13px;color:#735719}</style></head><body>
 <h1>멍더랜드 예약 조회 · 로컬 테스트</h1>
 <p class="note">127.0.0.1에서만 실행하는 개발 도구입니다. 테스트 계정만 사용하세요. 토큰은 화면이나 콘솔에 출력하지 않습니다.</p>
 <form id="login"><label>테스트 이메일<input id="email" type="email" autocomplete="username" required></label><label>비밀번호<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Firebase 로그인</button></form>
@@ -36,7 +36,30 @@ async function loadBookings(){
     const dt=document.createElement('dt');dt.textContent=label;
     const dd=document.createElement('dd');dd.textContent=value;details.append(dt,dd);
    }
-   card.append(status,name,details);root.append(card);
+   const toggle=document.createElement('button');toggle.textContent='등원 요청사항 작성·조회';
+   const form=document.createElement('form');form.className='arrival-form';form.hidden=true;
+   const field=(label,element)=>{const wrap=document.createElement('label');wrap.textContent=label;wrap.append(element);form.append(wrap);return element;};
+   const time=field('식사 희망시간',document.createElement('input'));time.type='time';
+   const option=(label)=>{const el=document.createElement('select');for(const [v,t] of [['unknown','미정'],['yes','예'],['no','아니요']]){const o=document.createElement('option');o.value=v;o.textContent=t;el.append(o);}return field(label,el);};
+   const food=option('사료 지참');const belt=option('매너벨트 지참');
+   const condition=field('건강 상태 (200자 이내)',document.createElement('textarea'));condition.maxLength=200;
+   const notes=field('특이사항·요청사항 (500자 이내)',document.createElement('textarea'));notes.maxLength=500;
+   const save=document.createElement('button');save.type='submit';save.textContent='요청사항 저장';form.append(save);
+   const msg=document.createElement('p');msg.className='arrival-message';form.append(msg);
+   const url='/api/guardian/bookings/'+encodeURIComponent(b.bookingId)+'/arrival-request';
+   toggle.addEventListener('click',async()=>{
+    form.hidden=!form.hidden;if(form.hidden)return;
+    msg.textContent='기존 요청 조회 중';
+    try{const token=await auth.currentUser.getIdToken();const response=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await response.json();if(!response.ok)throw Error('조회 거부');
+     const v=data.request;if(v){time.value=v.mealTime||'';food.value=v.foodProvided||'unknown';belt.value=v.mannerBelt||'unknown';condition.value=v.condition||'';notes.value=v.notes||'';}
+     msg.textContent=v?'저장된 요청을 불러왔습니다.':'아직 작성된 요청이 없습니다.';
+    }catch(_){msg.textContent='요청 조회에 실패했습니다.';}
+   });
+   form.addEventListener('submit',async event=>{
+    event.preventDefault();save.disabled=true;msg.textContent='저장 중';
+    try{const token=await auth.currentUser.getIdToken();const response=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({mealTime:time.value,foodProvided:food.value,mannerBelt:belt.value,condition:condition.value,notes:notes.value})});const data=await response.json();msg.textContent=response.ok?'저장 완료 (revision '+data.revision+')':response.status===503?'격리 테스트 쓰기 권한을 활성화해야 합니다.':'저장 거부: 권한 또는 입력 내용을 확인하세요.';}catch(_){msg.textContent='저장 실패: 서버 연결을 확인하세요.';}finally{save.disabled=false;}
+   });
+   card.append(status,name,details,toggle,form);root.append(card);
   }
  }catch(_){output('요청 실패. 로컬 서버 및 네트워크 상태를 확인하세요.')}
  finally{$('read').disabled=!auth.currentUser}
