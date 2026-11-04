@@ -24,7 +24,7 @@ function createStaffArrivalService({sheets,bookingRepository,spreadsheetId=SHEET
  function present(entry){
   if(!entry)return null;
   const r=entry.values;
-  return {bookingId:r[1],dogId:r[2],mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0),acknowledgedAt:r[11]||null,acknowledgedBy:r[12]||null};
+  return {bookingId:r[1],dogId:r[2],mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0),reviewedRevision:Number(r[11]||0),acknowledgedBy:r[12]||null,acknowledgedAt:r[13]||null};
  }
  return {
   async get(principal,bookingId){
@@ -38,10 +38,10 @@ function createStaffArrivalService({sheets,bookingRepository,spreadsheetId=SHEET
    const {entry}=await locate(bookingId);
    if(!entry)throw Error('Request not found');
    if(Number(entry.values[9]||0)!==expectedRevision)throw Error('Revision conflict');
-   if(entry.values[11])throw Error('Already acknowledged');
+   if(Number(entry.values[11]||0)===expectedRevision)throw Error('Already acknowledged');
    const timestamp=clock().toISOString();
    // Only acknowledgment columns; do not overwrite guardian-submitted fields.
-   await sheets.spreadsheets.values.update({spreadsheetId,range:TAB+'!L'+entry.row+':M'+entry.row,valueInputOption:'RAW',requestBody:{values:[[timestamp,staffId]]}});
+   await sheets.spreadsheets.values.update({spreadsheetId,range:TAB+'!L'+entry.row+':N'+entry.row,valueInputOption:'RAW',requestBody:{values:[[expectedRevision,staffId,timestamp]]}});
    return {bookingId,revision:expectedRevision,acknowledgedAt:timestamp,acknowledgedBy:staffId};
   }
  };
