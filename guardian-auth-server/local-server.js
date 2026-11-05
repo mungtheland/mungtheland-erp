@@ -55,7 +55,7 @@ async function main(){
  const staffEmail=process.env.MD_TEST_STAFF_EMAIL;
  const staffId=process.env.MD_TEST_STAFF_ID;
  if([staffUid,staffEmail,staffId].some(Boolean)&&![staffUid,staffEmail,staffId].every(Boolean))throw Error('All staff test identity settings are required');
- if(staffUid&&(staffUid===uid||staffUid===otherUid||!/^\\S+@\\S+\\.\\S+$/.test(staffEmail)||!/^STAFF-[A-Z0-9-]{1,64}$/.test(staffId)))throw Error('Invalid staff test identity');
+ if(staffUid&&(staffUid===uid||staffUid===otherUid||!/^\S+@\S+\.\S+$/.test(staffEmail)||!/^STAFF-[A-Z0-9-]{1,64}$/.test(staffId)))throw Error('Invalid staff test identity');
  const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
