@@ -55,3 +55,25 @@ test('stale revision is rejected without writing',async()=>{
  await assert.rejects(service.save('CUS-TEST-001','RSV-TEST-001',{foodProvided:'yes',mannerBelt:'no'},4),/Revision conflict/);
  assert.equal(writes,0);
 });
+
+test('concurrent guardian saves with same expected revision allow only one write',async()=>{
+ const bookingId='RSV-TEST-001';
+ const row=['REQ-TEST-001',bookingId,'DOG-TEST-001','CUS-TEST-001','','yes','no','normal','','4','','','',''];
+ const booking=[bookingId,'2026-11-05','DOG-TEST-001','','','예약','','','미등원'];
+ let writes=0;
+ const sheets={spreadsheets:{values:{
+  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header'],row.slice()]}}),
+  update:async args=>{writes++;await Promise.resolve();row.splice(0,row.length,...args.requestBody.values[0]);},
+  append:async()=>{throw Error('unexpected append')}
+ }}};
+ const service=createArrivalRequestService({sheets,bookingRepository:{findById:async()=>({customerId:'CUS-TEST-001'})}});
+ const payload={foodProvided:'yes',mannerBelt:'no',condition:'normal'};
+ const results=await Promise.allSettled([
+  service.save('CUS-TEST-001',bookingId,{...payload,notes:'first'},4),
+  service.save('CUS-TEST-001',bookingId,{...payload,notes:'second'},4)
+ ]);
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+ assert.equal(results.filter(x=>x.status==='rejected'&&/Revision conflict/.test(x.reason.message)).length,1);
+ assert.equal(writes,1);
+ assert.equal(row[9],'5');
+});
