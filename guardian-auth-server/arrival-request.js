@@ -1,4 +1,5 @@
 'use strict';
+const {withBookingLock}=require('./booking-lock');
 const SHEET_ID='1ReLidmaD4XOBI0IRS09uDL44_RICfQ-VO2ljx4q_gYY';
 const TAB="'보호자등원요청'";
 const ID=/^RSV-[A-Z0-9-]{1,64}$/;
@@ -32,6 +33,7 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
    return {mealTime:r[4]||'',foodProvided:r[5]||'unknown',mannerBelt:r[6]||'unknown',condition:r[7]||'',notes:r[8]||'',revision:Number(r[9]||0),reviewedRevision:Number(r[11]||0),reviewStatus:Number(r[11]||0)===Number(r[9]||0)?'confirmed':'unconfirmed'};
   },
   async save(customerId,bookingId,data,expectedRevision){
+   return withBookingLock(bookingId,async()=>{
    if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('Invalid expected revision');
    await owned(customerId,bookingId);
    const v=validate(data);
@@ -60,6 +62,7 @@ function createArrivalRequestService({sheets,bookingRepository,spreadsheetId=SHE
     await sheets.spreadsheets.values.append({spreadsheetId,range:TAB+'!A1:N200',valueInputOption:'RAW',insertDataOption:'INSERT_ROWS',requestBody:{values}});
    }
    return {saved:true,revision};
+   });
   }
  };
 }
