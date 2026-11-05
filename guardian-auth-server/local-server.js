@@ -85,6 +85,10 @@ async function main(){
  const port=Number(process.env.PORT||8787);
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
  http.createServer((req,res)=>{
+  if(req.method==='GET'&&req.url==='/staff-local-test'){
+   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'unsafe-inline'; frame-ancestors 'none'"});
+   fs.createReadStream(path.join(__dirname,'staff-local-test.html')).pipe(res);return;
+  }
   if(req.method==='GET'&&(req.url==='/local-test'||req.url==='/local-test?')){
    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});
    fs.createReadStream(path.join(__dirname,'local-test.html')).pipe(res);return;
