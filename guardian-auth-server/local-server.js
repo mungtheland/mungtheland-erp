@@ -10,6 +10,9 @@ const path=require('node:path');
 const {createGuardianAuthenticator}=require('./authenticate');
 const {createGuardianBookingHttpHandler}=require('./booking-http');
 const {createArrivalRequestService}=require('./arrival-request');
+const {createStaffAuthenticator}=require('./staff-authenticate');
+const {createStaffArrivalService}=require('./staff-arrival');
+const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 async function main(){
  const {getAuth}=require('firebase-admin/auth');
@@ -47,6 +50,16 @@ async function main(){
    process.stderr.write('[guardian-test] BOOKING_STAGE_'+(booking?'FOUND':'NOT_FOUND')+'\n');return booking;
   }catch(_){process.stderr.write('[guardian-test] BOOKING_STAGE_ERROR (read-only Sheets access or schema)\n');throw Error('Booking lookup failed');}
  }};
+ // Staff test identity must be explicitly provisioned by server operator.
+ const staffUid=process.env.MD_TEST_STAFF_UID;
+ const staffEmail=process.env.MD_TEST_STAFF_EMAIL;
+ const staffId=process.env.MD_TEST_STAFF_ID;
+ if([staffUid,staffEmail,staffId].some(Boolean)&&![staffUid,staffEmail,staffId].every(Boolean))throw Error('All staff test identity settings are required');
+ if(staffUid&&(staffUid===uid||staffUid===otherUid||!/^\\S+@\\S+\\.\\S+$/.test(staffEmail)||!/^STAFF-[A-Z0-9-]{1,64}$/.test(staffId)))throw Error('Invalid staff test identity');
+ const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
+ const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
+ const staffArrival=createStaffArrivalService({sheets,bookingRepository});
+ const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,writeEnabled:arrivalWriteEnabled});
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const arrival=createArrivalRequestService({sheets,bookingRepository});
  async function handleArrival(req,res){
@@ -86,6 +99,9 @@ async function main(){
   const localOrigin='http://127.0.0.1:'+port;
   if(req.headers.origin&&req.headers.origin!==localOrigin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
    res.writeHead(403);res.end();return;
+  }
+  if(/^\/api\/staff\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\/acknowledge)?(?:\\?|$)/.test(req.url)){
+   void handleStaffArrival(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;
   }
   if(/^\/api\/guardian\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\?|$)/.test(req.url)){
    void handleArrival(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;
