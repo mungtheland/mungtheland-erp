@@ -39,7 +39,7 @@ test('guardian edit and staff acknowledgment serialize; latest revision remains 
  const booking=[bookingId,'2026-11-05','DOG-TEST-001','','','예약','','','미등원'];
  const writes=[];
  const sheets={spreadsheets:{values:{
-  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header',row.slice()]}}),
+  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header'],row.slice()]}}),
   update:async args=>{
    writes.push(args.range);
    await Promise.resolve();
@@ -69,7 +69,7 @@ test('guardian edit first makes concurrent staff acknowledgment of stale revisio
  const booking=[bookingId,'2026-11-05','DOG-TEST-001','','','예약','','','미등원'];
  let writes=0;
  const sheets={spreadsheets:{values:{
-  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header',row.slice()]}}),
+  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header'],row.slice()]}}),
   update:async args=>{writes++;await Promise.resolve();if(/!A2:N2$/.test(args.range))row.splice(0,row.length,...args.requestBody.values[0]);else row.splice(11,3,...args.requestBody.values[0]);},
   append:async()=>{throw Error('unexpected append')}
  }}};
