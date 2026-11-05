@@ -32,3 +32,58 @@ test('acknowledgment writes only L:N after matching revision',async()=>{
  assert.match(writes[0].range,/!L2:N2$/);
  assert.deepEqual(writes[0].requestBody.values,[[4,'STAFF-TEST-001','2026-11-04T03:00:00.000Z']]);
 });
+
+test('guardian edit and staff acknowledgment serialize; latest revision remains unconfirmed',async()=>{
+ const {createArrivalRequestService}=require('./arrival-request');
+ const row=['REQ-TEST-001',bookingId,'DOG-TEST-001','CUS-TEST-001','12:30','yes','no','normal','original','4','','','',''];
+ const booking=[bookingId,'2026-11-05','DOG-TEST-001','','','예약','','','미등원'];
+ const writes=[];
+ const sheets={spreadsheets:{values:{
+  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header',row.slice()]}}),
+  update:async args=>{
+   writes.push(args.range);
+   await Promise.resolve();
+   if(/!L2:N2$/.test(args.range))row.splice(11,3,...args.requestBody.values[0]);
+   else row.splice(0,row.length,...args.requestBody.values[0]);
+  },
+  append:async()=>{throw Error('unexpected append')}
+ }}};
+ const repository={findById:async()=>({bookingId,customerId:'CUS-TEST-001'})};
+ const guardian=createArrivalRequestService({sheets,bookingRepository:repository});
+ const employee=createStaffArrivalService({sheets,bookingRepository:repository});
+ // Employee reviews revision 4 first; guardian then changes it to revision 5.
+ const [ack,save]=await Promise.all([
+  employee.acknowledge(staff,bookingId,4),
+  guardian.save('CUS-TEST-001',bookingId,{mealTime:'13:00',foodProvided:'yes',mannerBelt:'no',condition:'normal',notes:'new'},4)
+ ]);
+ assert.equal(ack.revision,4);
+ assert.equal(save.revision,5);
+ assert.equal(row[9],'5');
+ assert.deepEqual(row.slice(11,14),['','','']);
+ assert.equal((await guardian.get('CUS-TEST-001',bookingId)).reviewStatus,'unconfirmed');
+ assert.equal(writes.length,2);
+});
+test('guardian edit first makes concurrent staff acknowledgment of stale revision fail',async()=>{
+ const {createArrivalRequestService}=require('./arrival-request');
+ const row=['REQ-TEST-001',bookingId,'DOG-TEST-001','CUS-TEST-001','','yes','no','normal','old','4','','','',''];
+ const booking=[bookingId,'2026-11-05','DOG-TEST-001','','','예약','','','미등원'];
+ let writes=0;
+ const sheets={spreadsheets:{values:{
+  get:async ({range})=>({data:{values:range.includes('예약·등하원관리')?[['header'],booking]:[['header',row.slice()]}}),
+  update:async args=>{writes++;await Promise.resolve();if(/!A2:N2$/.test(args.range))row.splice(0,row.length,...args.requestBody.values[0]);else row.splice(11,3,...args.requestBody.values[0]);},
+  append:async()=>{throw Error('unexpected append')}
+ }}};
+ const repository={findById:async()=>({bookingId,customerId:'CUS-TEST-001'})};
+ const guardian=createArrivalRequestService({sheets,bookingRepository:repository});
+ const employee=createStaffArrivalService({sheets,bookingRepository:repository});
+ const [save,ack]=await Promise.allSettled([
+  guardian.save('CUS-TEST-001',bookingId,{foodProvided:'yes',mannerBelt:'no',condition:'normal'},4),
+  employee.acknowledge(staff,bookingId,4)
+ ]);
+ assert.equal(save.status,'fulfilled');
+ assert.equal(ack.status,'rejected');
+ assert.match(ack.reason.message,/Revision conflict/);
+ assert.equal(writes,1);
+ assert.equal(row[9],'5');
+ assert.deepEqual(row.slice(11,14),['','','']);
+});
