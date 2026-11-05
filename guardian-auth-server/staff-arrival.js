@@ -1,6 +1,6 @@
 'use strict';
 // Staff-only service: intentionally NOT mounted on an HTTP route until staff authentication exists.
-const {createArrivalRequestService}=require('./arrival-request');
+const {withBookingLock}=require('./booking-lock');
 const SHEET_ID='1ReLidmaD4XOBI0IRS09uDL44_RICfQ-VO2ljx4q_gYY';
 const TAB="'보호자등원요청'";
 const BOOKING=/^RSV-[A-Z0-9-]{1,64}$/;
@@ -10,7 +10,6 @@ function requireStaff(principal){
 }
 function createStaffArrivalService({sheets,bookingRepository,spreadsheetId=SHEET_ID,clock=()=>new Date()}){
  if(spreadsheetId!==SHEET_ID)throw Error('Isolated sheet only');
- const guardianService=createArrivalRequestService({sheets,bookingRepository,spreadsheetId});
  const range=TAB+'!A1:N200';
  async function locate(bookingId){
   if(!BOOKING.test(bookingId||''))throw Error('Invalid booking');
@@ -33,6 +32,7 @@ function createStaffArrivalService({sheets,bookingRepository,spreadsheetId=SHEET
    return present(entry);
   },
   async acknowledge(principal,bookingId,expectedRevision){
+   return withBookingLock(bookingId,async()=>{
    const staffId=requireStaff(principal);
    if(!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw Error('Invalid revision');
    const {entry}=await locate(bookingId);
@@ -43,6 +43,7 @@ function createStaffArrivalService({sheets,bookingRepository,spreadsheetId=SHEET
    // Only acknowledgment columns; do not overwrite guardian-submitted fields.
    await sheets.spreadsheets.values.update({spreadsheetId,range:TAB+'!L'+entry.row+':N'+entry.row,valueInputOption:'RAW',requestBody:{values:[[expectedRevision,staffId,timestamp]]}});
    return {bookingId,revision:expectedRevision,acknowledgedAt:timestamp,acknowledgedBy:staffId};
+   });
   }
  };
 }
