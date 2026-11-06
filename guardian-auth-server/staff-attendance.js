@@ -39,7 +39,11 @@ function createStaffAttendanceService({bookingRepository,store=null,clock=()=>ne
    const previous=await state(bookingId);
    if((action==='check-in'&&previous.state!=='예약')||(action==='check-out'&&previous.state!=='등원 중'))throw Error('Invalid transition');
    const event={eventId:'EVT-'+randomUUID(),bookingId,action,staffId:principal.staffId,at:clock().toISOString()};
-   if(store)await store.append(event);
+   if(store&&typeof store.commitTransition==='function'){
+    // A production adapter must atomically verify expectedState and append once.
+    // No Google Sheets read-then-append is permitted through this interface.
+    await store.commitTransition({event,expectedState:previous.state});
+   }else if(store)await store.append(event);
    else records.set(bookingId,[...(records.get(bookingId)||[]),event]);
    return state(bookingId);
   });
