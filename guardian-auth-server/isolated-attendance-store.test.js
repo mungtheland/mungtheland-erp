@@ -92,3 +92,10 @@ test('out-of-order event timestamps fail closed',async()=>{
  const service=createStaffAttendanceService({bookingRepository,store:createIsolatedAttendanceStore({sheets})});
  await assert.rejects(()=>service.get(staff,'RSV-TEST-001'),/Invalid attendance history/);
 });
+
+test('unknown explicit booking status blocks attendance writes',async()=>{
+ const repo={findById:async id=>({bookingId:id,status:'환불 처리'})};
+ const service=createStaffAttendanceService({bookingRepository:repo});
+ await assert.rejects(()=>service.transition(staff,'RSV-TEST-001','check-in'),/Booking status blocks attendance/);
+ assert.equal((await service.get(staff,'RSV-TEST-001')).state,'예약');
+});
