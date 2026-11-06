@@ -70,3 +70,25 @@ test('invalid event order is rejected rather than silently repaired',async()=>{
  const service=createStaffAttendanceService({bookingRepository,store:createIsolatedAttendanceStore({sheets})});
  await assert.rejects(()=>service.get(staff,'RSV-TEST-001'),/Invalid attendance history/);
 });
+
+test('cancelled booking cannot be checked in, even with valid staff credentials',async()=>{
+ const repo={findById:async id=>({bookingId:id,status:'취소'})};
+ const service=createStaffAttendanceService({bookingRepository:repo});
+ await assert.rejects(()=>service.transition(staff,'RSV-TEST-001','check-in'),/Booking status blocks attendance/);
+ assert.equal((await service.get(staff,'RSV-TEST-001')).state,'예약');
+});
+test('duplicate attendance event IDs fail closed',async()=>{
+ const event=['EVT-00000000-0000-4000-8000-000000000000','RSV-TEST-001','check-in','STAFF-TEST-001','2026-11-06T00:00:00Z'];
+ const rows=[HEADER,event,[...event.slice(0,2),'check-out',...event.slice(3)]];
+ const sheets={spreadsheets:{values:{get:async()=>({data:{values:rows}}),append:async()=>{throw Error('Unexpected write');}}}};
+ const service=createStaffAttendanceService({bookingRepository,store:createIsolatedAttendanceStore({sheets})});
+ await assert.rejects(()=>service.get(staff,'RSV-TEST-001'),/Invalid attendance history/);
+});
+test('out-of-order event timestamps fail closed',async()=>{
+ const rows=[HEADER,
+  ['EVT-00000000-0000-4000-8000-000000000000','RSV-TEST-001','check-in','STAFF-TEST-001','2026-11-06T01:00:00Z'],
+  ['EVT-00000000-0000-4000-8000-000000000001','RSV-TEST-001','check-out','STAFF-TEST-001','2026-11-06T00:00:00Z']];
+ const sheets={spreadsheets:{values:{get:async()=>({data:{values:rows}}),append:async()=>{throw Error('Unexpected write');}}}};
+ const service=createStaffAttendanceService({bookingRepository,store:createIsolatedAttendanceStore({sheets})});
+ await assert.rejects(()=>service.get(staff,'RSV-TEST-001'),/Invalid attendance history/);
+});
