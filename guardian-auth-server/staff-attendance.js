@@ -33,7 +33,9 @@ function createStaffAttendanceService({bookingRepository,store=null,clock=()=>ne
    if(action!=='check-in'&&action!=='check-out')throw Error('Invalid action');
    const booking=await bookingRepository.findById(bookingId);
    if(!booking)throw Error('Booking not found');
-   if(['취소','예약 취소','취소 완료','노쇼','하원 완료'].includes(String(booking.status||'').trim()))throw Error('Booking status blocks attendance');
+   // Fail closed on unknown or changed booking statuses until ERP mapping is explicitly approved.
+   const bookingStatus=String(booking.status||'').trim();
+   if(!['예약','등원 중'].includes(bookingStatus))throw Error('Booking status blocks attendance');
    const previous=await state(bookingId);
    if((action==='check-in'&&previous.state!=='예약')||(action==='check-out'&&previous.state!=='등원 중'))throw Error('Invalid transition');
    const event={eventId:'EVT-'+randomUUID(),bookingId,action,staffId:principal.staffId,at:clock().toISOString()};
