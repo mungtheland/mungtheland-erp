@@ -29,7 +29,7 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
   }catch(err){
    if(err.message==='Revision conflict'||err.message==='Already acknowledged'){send(409,{error:'Revision conflict'});return true;}
    if(listing){process.stderr.write('[staff-test] BOOKING_LIST_FAILED '+(err.code||err.name||'Error')+'\n');send(500,{error:'Booking list unavailable'});return true;}
-   if(attendance){send(err.message==='Invalid transition'?409:err.message==='Booking not found'?404:403,{error:err.message==='Invalid transition'?'Invalid transition':'Attendance request rejected'});return true;}
+   if(attendance){const status=err.message==='Invalid transition'?409:err.message==='Booking not found'?404:err.message==='Access denied'?403:503;send(status,{error:status===409?'Invalid transition':status===503?'Attendance store unavailable':'Attendance request rejected'});return true;}
    send(403,{error:'Request rejected'});
   }
   return true;
