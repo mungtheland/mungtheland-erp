@@ -21,3 +21,17 @@ test('attendance rejects unauthorized staff and unknown booking',async()=>{
  await assert.rejects(()=>svc.get({role:'guardian'},'RSV-TEST-001'),/Access denied/);
  await assert.rejects(()=>svc.transition(staff,'RSV-OTHER','check-in'),/Booking not found/);
 });
+
+test('inactive and forged staff principals cannot read or write attendance',async()=>{
+ const svc=createStaffAttendanceService({bookingRepository});
+ for(const principal of [
+  {role:'guardian',status:'active',staffId:'STAFF-TEST-001'},
+  {role:'staff',status:'inactive',staffId:'STAFF-TEST-001'},
+  {role:'staff',status:'active',staffId:'invalid'},
+  null
+ ]){
+  await assert.rejects(()=>svc.get(principal,'RSV-TEST-001'),/Access denied/);
+  await assert.rejects(()=>svc.transition(principal,'RSV-TEST-001','check-in'),/Access denied/);
+ }
+ assert.equal((await svc.get(staff,'RSV-TEST-001')).state,'예약');
+});
