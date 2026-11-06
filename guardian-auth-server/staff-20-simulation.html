@@ -1,0 +1,30 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>멍더랜드 20마리 가상 운영 테스트</title>
+<style>body{font:16px system-ui,sans-serif;max-width:950px;margin:20px auto;padding:12px;background:#fafafa;color:#18251d}h1{font-size:24px}p{line-height:1.5}.notice{background:#fff1cf;padding:12px;border-radius:8px}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:16px 0}.summary div,.dog{background:white;border:1px solid #ddd;border-radius:10px;padding:12px}.summary strong{display:block;font-size:25px}.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}input,select,button{font:inherit;padding:10px;box-sizing:border-box;width:100%}.dogs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.dog h2{font-size:18px;margin:0 0 6px}.dog p{margin:6px 0}.state{font-weight:bold;padding:7px;border-radius:5px;background:#eee}.state[data-state="등원 중"]{background:#e4efff}.state[data-state="하원 완료"]{background:#e2f5e7}.buttons{display:flex;gap:6px}.buttons button{font-size:14px}.small{font-size:13px;color:#555}.empty{padding:20px;text-align:center}@media(max-width:500px){.controls{grid-template-columns:1fr}.dogs{grid-template-columns:1fr}}</style>
+<h1>멍더랜드 20마리 가상 운영 테스트</h1><p class="notice"><strong>완전 독립된 브라우저 시뮬레이션</strong> — 가상 데이터 20건만 사용합니다. Firebase·Google Sheets·실제 예약·운영 ERP에 접근하거나 기록하지 않습니다. 새로고침하면 초기화됩니다.</p>
+<div class="summary" id="summary"></div><div class="controls"><label>등하원 필터<select id="filter"><option value="전체">전체</option><option value="예약">미등원</option><option value="등원 중">등원 중</option><option value="하원 완료">하원 완료</option></select></label><label>이름·예약번호 검색<input id="search" type="search" placeholder="가상멍이 또는 RSV-SIM-001"></label></div><p id="visible" aria-live="polite"></p><div class="dogs" id="dogs"></div>
+<script>
+'use strict';
+const dogs=Array.from({length:20},(_,i)=>({id:'RSV-SIM-'+String(i+1).padStart(3,'0'),name:'가상멍이'+String(i+1).padStart(2,'0'),state:i<8?'예약':i<15?'등원 중':'하원 완료',review:i%4===0?'대기':'완료',events:[]}));
+const $=id=>document.getElementById(id),summary=$('summary'),root=$('dogs');
+function change(id,action){const dog=dogs.find(x=>x.id===id);if(!dog)return;const expected=action==='check-in'?'예약':'등원 중';if(dog.state!==expected)return;dog.events.push({action,at:new Date().toISOString()});dog.state=action==='check-in'?'등원 중':'하원 완료';render();}
+function render(){
+ const metrics=[['전체 예약',dogs.length],['미등원',dogs.filter(d=>d.state==='예약').length],['등원 중',dogs.filter(d=>d.state==='등원 중').length],['하원 완료',dogs.filter(d=>d.state==='하원 완료').length],['직원 확인 대기',dogs.filter(d=>d.review==='대기').length]];
+ summary.replaceChildren();for(const [label,value] of metrics){const el=document.createElement('div'),span=document.createElement('span'),strong=document.createElement('strong');span.textContent=label;strong.textContent=value;el.append(span,strong);summary.append(el);}
+ const term=$('search').value.trim().toLocaleLowerCase('ko-KR'),filter=$('filter').value;
+ const filtered=dogs.filter(d=>(filter==='전체'||d.state===filter)&&(!term||(d.name+' '+d.id).toLocaleLowerCase('ko-KR').includes(term))).sort((a,b)=>(a.review==='대기'?0:1)-(b.review==='대기'?0:1)||a.id.localeCompare(b.id));
+ $('visible').textContent='표시 '+filtered.length+'건 / 전체 '+dogs.length+'건';
+ root.replaceChildren();if(!filtered.length){const empty=document.createElement('p');empty.className='empty';empty.textContent='조건에 맞는 예약이 없습니다.';root.append(empty);}
+ for(const dog of filtered){
+  const card=document.createElement('article');card.className='dog';const title=document.createElement('h2');title.textContent=dog.name;
+  const id=document.createElement('p');id.className='small';id.textContent=dog.id;
+  const state=document.createElement('p');state.className='state';state.dataset.state=dog.state;state.textContent='등하원: '+(dog.state==='예약'?'미등원':dog.state);
+  const review=document.createElement('p');review.textContent='직원 확인 '+dog.review;
+  const buttons=document.createElement('div');buttons.className='buttons';
+  for(const [action,label,allowed] of [['check-in','등원 처리',dog.state==='예약'],['check-out','하원 처리',dog.state==='등원 중']]){
+   const button=document.createElement('button');button.textContent=label;button.disabled=!allowed;button.onclick=()=>change(dog.id,action);buttons.append(button);
+  }
+  card.append(title,id,state,review,buttons);root.append(card);
+ }
+}
+$('filter').onchange=render;$('search').oninput=render;render();
+</script></html>
