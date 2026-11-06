@@ -15,6 +15,7 @@ const {createStaffArrivalService}=require('./staff-arrival');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {createStaffAttendanceService}=require('./staff-attendance');
 const {createIsolatedAttendanceStore}=require('./isolated-attendance-store');
+const {createFirestoreAttendanceStore}=require('./firestore-attendance-store');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 async function main(){
  const {getAuth}=require('firebase-admin/auth');
@@ -62,9 +63,12 @@ async function main(){
  const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
- const attendanceStore=attendancePersistEnabled?createIsolatedAttendanceStore({sheets,spreadsheetId:TEST_SPREADSHEET_ID}):null;
+ const firestoreEnabled=process.env.MD_TEST_ATTENDANCE_FIRESTORE==='enabled';
+ if(firestoreEnabled&&attendancePersistEnabled)throw Error('Select only one attendance persistence mode');
+ const {getFirestore}=require('firebase-admin/firestore');
+ const attendanceStore=firestoreEnabled?createFirestoreAttendanceStore({db:getFirestore(app),projectId}):attendancePersistEnabled?createIsolatedAttendanceStore({sheets,spreadsheetId:TEST_SPREADSHEET_ID}):null;
  const staffAttendance=createStaffAttendanceService({bookingRepository,store:attendanceStore});
- process.stdout.write('[staff-test] Attendance mode: '+(attendancePersistEnabled?'isolated Sheets event log':'process-local simulation')+'\n');
+ process.stdout.write('[staff-test] Attendance mode: '+(firestoreEnabled?'isolated Firestore transactions':attendancePersistEnabled?'isolated Sheets event log':'process-local simulation')+'\n');
  const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,staffAttendance,bookingRepository,writeEnabled:arrivalWriteEnabled});
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const arrival=createArrivalRequestService({sheets,bookingRepository});
