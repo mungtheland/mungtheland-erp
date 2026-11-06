@@ -24,7 +24,9 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
    const result=await staffArrival.acknowledge(principal,match[1],data.expectedRevision);
    send(200,result);
   }catch(err){
-   send(err.message==='Revision conflict'?409:err.message==='Already acknowledged'?409:403,{error:err.message==='Revision conflict'?'Revision conflict':'Request rejected'});
+   if(err.message==='Revision conflict'||err.message==='Already acknowledged'){send(409,{error:'Revision conflict'});return true;}
+   if(listing){process.stderr.write('[staff-test] BOOKING_LIST_FAILED '+(err.code||err.name||'Error')+'\n');send(500,{error:'Booking list unavailable'});return true;}
+   send(403,{error:'Request rejected'});
   }
   return true;
  };
