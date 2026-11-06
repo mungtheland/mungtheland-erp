@@ -50,7 +50,28 @@ async function loadList(){
    const reviewText=document.createElement('p');reviewText.className='status';reviewText.textContent=statusText[review];
    const button=document.createElement('button');button.type='button';button.textContent='등원 요청사항 확인';
    button.onclick=()=>{$('booking').value=booking.bookingId;$('load').click();};
-   card.append(name,info,status,reviewText,button);root.append(card);
+   const attendance=document.createElement('p');attendance.textContent='테스트 등하원 상태 조회 중';
+   const inButton=document.createElement('button'),outButton=document.createElement('button');
+   inButton.type='button';outButton.type='button';inButton.textContent='테스트 등원 처리';outButton.textContent='테스트 하원 처리';
+   const update=async()=>{
+    const res=await fetch('/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+    if(seq!==listRequest)return;
+    if(!res.ok){attendance.textContent='테스트 상태 조회 실패 HTTP '+res.status;inButton.disabled=true;outButton.disabled=true;return;}
+    const data=await res.json(),v=data.attendance;
+    attendance.textContent='임시 등하원 상태: '+v.state+(v.checkIn?' / 등원 '+v.checkIn.staffId+' '+v.checkIn.at:'')+(v.checkOut?' / 하원 '+v.checkOut.staffId+' '+v.checkOut.at:'');
+    inButton.disabled=v.state!=='예약';outButton.disabled=v.state!=='등원 중';
+   };
+   const change=async action=>{
+    inButton.disabled=true;outButton.disabled=true;
+    try{
+     const res=await fetch('/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance/'+action,{method:'POST',headers:{Authorization:'Bearer '+await auth.currentUser.getIdToken()}});
+     if(!res.ok){attendance.textContent=res.status===409?'상태가 이미 변경됐습니다. 다시 조회해 주세요.':'상태 변경 실패 HTTP '+res.status;}
+     await update();
+    }catch(_){attendance.textContent='상태 변경 중 오류 발생';}
+   };
+   inButton.onclick=()=>change('check-in');outButton.onclick=()=>change('check-out');
+   card.append(name,info,status,reviewText,button,attendance,inButton,outButton);root.append(card);
+   await update();
   }
  }catch(_){if(seq===listRequest)root.textContent='목록 조회 중 오류가 발생했습니다.';}
 }
