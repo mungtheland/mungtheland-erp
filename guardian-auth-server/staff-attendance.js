@@ -1,6 +1,7 @@
 'use strict';
 // Isolated, process-local attendance simulation. Never writes to any spreadsheet.
 // Records disappear on server restart; not suitable for production.
+const {withBookingLock}=require('./booking-lock');
 function createStaffAttendanceService({bookingRepository,clock=()=>new Date()}){
  const records=new Map();
  function authorize(principal){
@@ -14,6 +15,7 @@ function createStaffAttendanceService({bookingRepository,clock=()=>new Date()}){
  }
  async function transition(principal,bookingId,action){
   authorize(principal);
+  return withBookingLock(bookingId,async()=>{
   if(action!=='check-in'&&action!=='check-out')throw Error('Invalid action');
   const booking=await bookingRepository.findById(bookingId);
   if(!booking)throw Error('Booking not found');
@@ -23,6 +25,7 @@ function createStaffAttendanceService({bookingRepository,clock=()=>new Date()}){
   const next=action==='check-in'?{...previous,state:'등원 중',checkIn:{staffId:principal.staffId,at:timestamp}}:{...previous,state:'하원 완료',checkOut:{staffId:principal.staffId,at:timestamp}};
   records.set(bookingId,next);
   return {bookingId,...next,temporary:true};
+  });
  }
  return {get,transition};
 }
