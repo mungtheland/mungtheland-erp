@@ -13,6 +13,7 @@ const {createArrivalRequestService}=require('./arrival-request');
 const {createStaffAuthenticator}=require('./staff-authenticate');
 const {createStaffArrivalService}=require('./staff-arrival');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
+const {createStaffAttendanceService}=require('./staff-attendance');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 async function main(){
  const {getAuth}=require('firebase-admin/auth');
@@ -59,7 +60,8 @@ async function main(){
  const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
- const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRepository,writeEnabled:arrivalWriteEnabled});
+ const staffAttendance=createStaffAttendanceService({bookingRepository});
+ const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,staffAttendance,bookingRepository,writeEnabled:arrivalWriteEnabled});
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const arrival=createArrivalRequestService({sheets,bookingRepository});
  async function handleArrival(req,res){
@@ -104,7 +106,7 @@ async function main(){
   if(req.headers.origin&&req.headers.origin!==localOrigin&&req.headers.origin!=='https://mungtheland-guardian-test.web.app'){
    res.writeHead(403);res.end();return;
   }
-  if(new URL(req.url,'http://localhost').pathname==='/api/staff/bookings'||/^\/api\/staff\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\/acknowledge)?(?:\\?|$)/.test(req.url)){
+  if(new URL(req.url,'http://localhost').pathname==='/api/staff/bookings'||/^\/api\/staff\/bookings\/RSV-[A-Z0-9-]{1,64}\/(?:arrival-request(?:\/acknowledge)?|attendance(?:\/(?:check-in|check-out))?)(?:\?|$)/.test(req.url)){
    void handleStaffArrival(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;
   }
   if(/^\/api\/guardian\/bookings\/RSV-[A-Z0-9-]{1,64}\/arrival-request(?:\?|$)/.test(req.url)){
