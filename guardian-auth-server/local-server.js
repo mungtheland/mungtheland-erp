@@ -14,6 +14,7 @@ const {createStaffAuthenticator}=require('./staff-authenticate');
 const {createStaffArrivalService}=require('./staff-arrival');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {createStaffAttendanceService}=require('./staff-attendance');
+const {createIsolatedAttendanceStore}=require('./isolated-attendance-store');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 async function main(){
  const {getAuth}=require('firebase-admin/auth');
@@ -27,7 +28,8 @@ async function main(){
  const app=initializeApp({credential:applicationDefault(),projectId});
  const firebaseAuth=getAuth(app);
  const arrivalWriteEnabled=process.env.MD_TEST_ARRIVAL_WRITE==='enabled';
- const googleAuth=new google.auth.GoogleAuth({scopes:[arrivalWriteEnabled?'https://www.googleapis.com/auth/spreadsheets':'https://www.googleapis.com/auth/spreadsheets.readonly']});
+ const attendancePersistEnabled=process.env.MD_TEST_ATTENDANCE_PERSIST==='enabled';
+ const googleAuth=new google.auth.GoogleAuth({scopes:[arrivalWriteEnabled||attendancePersistEnabled?'https://www.googleapis.com/auth/spreadsheets':'https://www.googleapis.com/auth/spreadsheets.readonly']});
  const sheets=google.sheets({version:'v4',auth:googleAuth});
  // Optional second, independently authenticated test guardian for real cross-customer denial.
  // This is an explicit, server-owned test mapping; never accept customerId from the browser.
@@ -60,7 +62,9 @@ async function main(){
  const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
- const staffAttendance=createStaffAttendanceService({bookingRepository});
+ const attendanceStore=attendancePersistEnabled?createIsolatedAttendanceStore({sheets,spreadsheetId:TEST_SPREADSHEET_ID}):null;
+ const staffAttendance=createStaffAttendanceService({bookingRepository,store:attendanceStore});
+ process.stdout.write('[staff-test] Attendance mode: '+(attendancePersistEnabled?'isolated Sheets event log':'process-local simulation')+'\n');
  const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,staffAttendance,bookingRepository,writeEnabled:arrivalWriteEnabled});
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const arrival=createArrivalRequestService({sheets,bookingRepository});
