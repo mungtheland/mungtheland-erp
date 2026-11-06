@@ -17,6 +17,14 @@ function createIsolatedSheetsBookingRepository({sheets,spreadsheetId=TEST_SPREAD
   return result.data?.values||[];
  }
  return {
+  async listForStaff(){
+   const [bookings,dogs]=await Promise.all([readRows(TEST_BOOKINGS),readRows(TEST_DOGS)]);
+   const dogCounts=new Map(),bookingCounts=new Map(),dogNames=new Map();
+   for(const row of dogs.slice(1)){if(!row[0])continue;dogCounts.set(row[0],(dogCounts.get(row[0])||0)+1);dogNames.set(row[0],row[4]||row[0]);}
+   for(const row of bookings.slice(1))if(row[0])bookingCounts.set(row[0],(bookingCounts.get(row[0])||0)+1);
+   return bookings.slice(1).filter(row=>/^RSV-[A-Z0-9-]{1,64}$/.test(row[0]||'')&&bookingCounts.get(row[0])===1&&dogCounts.get(row[2])===1)
+    .map(row=>({bookingId:row[0],dogName:dogNames.get(row[2]),visitDate:row[1]||'',status:row[5]||''}));
+  },
   async findByCustomerId(customerId){
    if(typeof customerId!=='string'||!/^CUS-TEST-[A-Z0-9-]+$/.test(customerId))return [];
    const [bookings,dogs]=await Promise.all([readRows(TEST_BOOKINGS),readRows(TEST_DOGS)]);
