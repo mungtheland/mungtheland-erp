@@ -1,0 +1,27 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>멍더랜드 직원 등원·차감 복구 HTTP 검증</title><style>body{font:16px system-ui;max-width:640px;margin:28px auto;padding:16px}input,button{box-sizing:border-box;padding:12px;margin:6px 0;width:100%}pre{white-space:pre-wrap;background:#f2f3f5;padding:16px}button:disabled{opacity:.5}</style><h1>격리 직원 HTTP 등원·차감 복구 테스트</h1><p>직원 A Firebase 로그인 후 버튼을 세 번 누르세요. 첫 요청은 의도적으로 차감 실패(202), 두 번째는 복구(200), 세 번째는 중복 차감 방지(200)를 확인합니다. 비밀번호는 Firebase 로그인에만 사용됩니다.</p><label>직원 A 비밀번호<input id="password" type="password" autocomplete="off"></label><button id="login">직원 A 인증</button><button id="run" disabled>1단계: 등원 후 차감 실패</button><pre id="log">준비 중</pre><script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import {getAuth,signInWithEmailAndPassword} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+const config={apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',authDomain:'mungtheland-guardian-test.firebaseapp.com',projectId:'mungtheland-guardian-test',appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'};
+const auth=getAuth(initializeApp(config,'http-recovery-A'));
+const $=id=>document.getElementById(id),log=s=>$('log').textContent+=s+'\n';
+let bookingId='',step=0,busy=false;
+try{const r=await fetch('/test-recovery-booking');if(!r.ok)throw Error('테스트 예약 조회 실패');bookingId=(await r.json()).bookingId;$('log').textContent='격리 예약 '+bookingId+'\n';}catch(e){$('log').textContent='초기화 실패 '+e.message;}
+$('login').onclick=async()=>{
+ if(busy||!bookingId)return;busy=true;$('login').disabled=true;
+ try{await signInWithEmailAndPassword(auth,'likealake@gmail.com',$('password').value);$('password').value='';log('직원 A Firebase 로그인 성공');$('run').disabled=false;}
+ catch(e){log('로그인 실패: '+e.message);}finally{$('password').value='';busy=false;$('login').disabled=false;}
+};
+$('run').onclick=async()=>{
+ if(busy||step>=3||!auth.currentUser)return;busy=true;$('run').disabled=true;
+ try{
+  const token=await auth.currentUser.getIdToken(true);
+  const r=await fetch('/api/staff/test-bookings/'+bookingId+'/check-in-with-pass',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  const data=await r.json();
+  const expected=step===0?'pending-reconciliation':step===1?'consumed':'already-consumed';
+  const ok=r.status===(step===0?202:200)&&data.result?.consumptionStatus===expected&&data.result?.attendanceState==='등원 중'&&(step===0?data.result?.reconciliationRequired===true:data.result?.remaining===7);
+  log('단계 '+(step+1)+' HTTP '+r.status+' / '+JSON.stringify(data)+' → '+(ok?'PASS':'FAIL'));
+  if(ok){step++;$('run').textContent=step===1?'2단계: 차감 재시도 복구':step===2?'3단계: 중복 차감 방지':'검증 완료';}
+ }catch(e){log('요청 실패: '+e.message);}
+ finally{busy=false;$('run').disabled=step>=3;}
+};
+</script></html>
