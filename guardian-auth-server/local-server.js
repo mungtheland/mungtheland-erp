@@ -60,7 +60,20 @@ async function main(){
  const staffId=process.env.MD_TEST_STAFF_ID;
  if([staffUid,staffEmail,staffId].some(Boolean)&&![staffUid,staffEmail,staffId].every(Boolean))throw Error('All staff test identity settings are required');
  if(staffUid&&(staffUid===uid||staffUid===otherUid||!/^\S+@\S+\.\S+$/.test(staffEmail)||!/^STAFF-[A-Z0-9-]{1,64}$/.test(staffId)))throw Error('Invalid staff test identity');
- const staffStore={findByFirebaseUid:async candidate=>candidate===staffUid&&staffUid?{staffId,email:staffEmail.toLowerCase(),status:'active'}:null};
+ // Optional second independently authenticated staff identity, explicitly configured server-side.
+ const secondStaffUid=process.env.MD_TEST_STAFF_2_UID;
+ const secondStaffEmail=process.env.MD_TEST_STAFF_2_EMAIL;
+ const secondStaffId=process.env.MD_TEST_STAFF_2_ID;
+ if([secondStaffUid,secondStaffEmail,secondStaffId].some(Boolean)&&![secondStaffUid,secondStaffEmail,secondStaffId].every(Boolean))throw Error('All secondary staff test identity settings are required');
+ if(secondStaffUid&&(!staffUid||secondStaffUid===staffUid||secondStaffUid===uid||secondStaffUid===otherUid||
+    secondStaffEmail.toLowerCase()===staffEmail.toLowerCase()||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(secondStaffEmail)||
+    !/^STAFF-[A-Z0-9-]{1,64}$/.test(secondStaffId)||secondStaffId===staffId))
+    throw Error('Invalid secondary staff test identity');
+ const staffStore={findByFirebaseUid:async candidate=>{
+  if(candidate===staffUid&&staffUid)return {staffId,email:staffEmail.toLowerCase(),status:'active'};
+  if(candidate===secondStaffUid&&secondStaffUid)return {staffId:secondStaffId,email:secondStaffEmail.toLowerCase(),status:'active'};
+  return null;
+ }};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
  const firestoreEnabled=process.env.MD_TEST_ATTENDANCE_FIRESTORE==='enabled';
