@@ -17,7 +17,7 @@ function planPassAdjustment({booking,pass,history,type,today}){
   if(!['미차감','복구'].includes(booking.deduction))throw Error('INVALID_DEDUCTION_STATUS');
   if(booking.status!=='예약'||!booking.checkedInAt||!['등원 중','하원'].includes(booking.attendance))throw Error('NO_VALID_CHECKIN');
   if(pass.payment!=='완료'||pass.status!=='사용 가능'||remaining<1)throw Error('PASS_NOT_USABLE');
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(booking.date)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(today))throw Error('INVALID_DATE');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(booking.date)||!/^\d{4}-\d{2}-\d{2}$/.test(today))throw Error('INVALID_DATE');
   if(booking.date>today||(pass.start&&booking.date<pass.start)||(pass.expiry&&booking.date>pass.expiry))throw Error('OUTSIDE_VALIDITY');
  }else{
   if(booking.deduction!=='차감'||net!==1||used<1||remaining>=total)throw Error('NOT_RESTORABLE');
