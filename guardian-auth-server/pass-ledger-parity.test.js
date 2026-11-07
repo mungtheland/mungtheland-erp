@@ -1,0 +1,16 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {inspectPassParity}=require('./pass-ledger-parity');
+const booking={bookingId:'RSV-TEST-1',dogId:'DOG-1',passId:'PASS-TEST-1',visitDate:'2026-11-07',deductionStatus:'미차감'};
+const pass={passId:'PASS-TEST-1',dogId:'DOG-1',totalCount:8,usedCount:0,remainingCount:8,paymentStatus:'완료',status:'사용 가능',startDate:'2026-11-01',expiryDate:'2026-12-01'};
+const inspect=(overrides={})=>inspectPassParity({booking:{...booking,...overrides.booking},pass:{...pass,...overrides.pass},history:overrides.history||[],firestorePass:overrides.firestorePass,consumption:overrides.consumption});
+test('clean read-only parity cannot enable writes',()=>{const r=inspect();assert.equal(r.compatible,true);assert.equal(r.canEnableFirestoreWrites,false);});
+test('rejects dog mismatch',()=>assert.ok(inspect({pass:{dogId:'DOG-2'}}).issues.includes('DOG_MISMATCH')));
+test('rejects unpaid pass',()=>assert.ok(inspect({pass:{paymentStatus:'미결제'}}).issues.includes('PAYMENT_NOT_CONFIRMED')));
+test('rejects invalid counts',()=>assert.ok(inspect({pass:{usedCount:2}}).issues.includes('INVALID_SHEETS_BALANCE')));
+test('rejects before-start visit',()=>assert.ok(inspect({booking:{visitDate:'2026-10-31'}}).issues.includes('BEFORE_PASS_START')));
+test('rejects expired visit',()=>assert.ok(inspect({booking:{visitDate:'2026-12-02'}}).issues.includes('AFTER_PASS_EXPIRY')));
+test('detects Firestore remaining mismatch',()=>assert.ok(inspect({firestorePass:{passId:'PASS-TEST-1',remaining:7}}).issues.includes('BALANCE_MISMATCH')));
+test('detects cross-ledger consumption without Sheets history',()=>assert.ok(inspect({consumption:{bookingId:'RSV-TEST-1',passId:'PASS-TEST-1'}}).issues.includes('CROSS_LEDGER_DEDUCTION_MISMATCH')));
+test('detects inconsistent Sheets booking flag',()=>assert.ok(inspect({booking:{deductionStatus:'차감'}}).issues.includes('SHEETS_LEDGER_STATUS_MISMATCH')));
+test('detects valid Sheets history but missing Firestore consumption',()=>assert.ok(inspect({booking:{deductionStatus:'차감'},pass:{usedCount:1,remainingCount:7},history:[{bookingId:'RSV-TEST-1',passId:'PASS-TEST-1',type:'차감'}],firestorePass:{passId:'PASS-TEST-1',remaining:7}}).issues.includes('CROSS_LEDGER_DEDUCTION_MISMATCH')));
