@@ -1,8 +1,8 @@
 'use strict';
 const {createGuardianAuthenticator}=require('./authenticate');
-function createStaffAuthenticator({firebaseAuth,accountStore,projectId}){
+function createStaffAuthenticator({firebaseAuth,accountStore,projectId,onDiagnostic}){
  const verify=createGuardianAuthenticator({
-  firebaseAuth,projectId,
+  firebaseAuth,projectId,onDiagnostic,
   accountStore:{findByFirebaseUid:async uid=>{
    const staff=await accountStore.findByFirebaseUid(uid);
    return staff&&staff.status==='active'&&staff.staffId
