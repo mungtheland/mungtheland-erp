@@ -3,7 +3,10 @@
 const {initializeApp,applicationDefault,deleteApp}=require('firebase-admin/app');
 const {getFirestore}=require('firebase-admin/firestore');
 const PROJECT='mungtheland-guardian-test';
-const BOOKING='RSV-TEST-001',PASS='PASS-TEST-SHEETS-001';
+const TARGETS={old:{bookingId:'RSV-TEST-001',passId:'PASS-TEST-SHEETS-001'},parity:{bookingId:'RSV-TEST-PARITY-002',passId:'PASS-TEST-PARITY-002'}};
+const target=TARGETS[process.argv[2]||'old'];
+if(!target)throw Error('Use only old or parity isolated test target');
+const {bookingId:BOOKING,passId:PASS}=target;
 async function inspect(db){
  const specs=[['attendance','attendance_test_v1',BOOKING],['pass','pass_ledger_test_v1',PASS],['consumption','pass_consumptions_test_v1',BOOKING],['binding','pass_reconciliation_bindings_test_v1',BOOKING]];
  const result={project:PROJECT,bookingId:BOOKING,passId:PASS,readOnly:true,writesPerformed:0,documents:{}};
