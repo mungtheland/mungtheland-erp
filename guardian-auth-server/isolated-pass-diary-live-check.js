@@ -10,6 +10,7 @@ const {google}=require('googleapis');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
 const {createFirestoreAttendanceStore}=require('./firestore-attendance-store');
 const {projectAttendance}=require('./attendance-pass-diary-projection');
+const {reconcileBookingStatus}=require('./booking-status-reconciliation');
 const PROJECT='mungtheland-guardian-test';
 async function main(){
  if(process.env.GOOGLE_CLOUD_PROJECT!==PROJECT||process.env.FIRESTORE_EMULATOR_HOST)throw Error('Only isolated test project is permitted');
@@ -34,6 +35,7 @@ async function main(){
    booking:{bookingId:booking.bookingId,dogName:booking.dogName,visitDate:booking.visitDate,sourceStatus:booking.status},
    firestoreEventCount:events.length,
    attendanceState:first.state,
+   statusReconciliation:reconcileBookingStatus(booking.status,first.state),
    hypotheticalPass:{initialRemaining:8,afterFirstProjection:first.pass.after,afterRepeatedProjection:second.pass.after,duplicateDeductionPrevented:!second.pass.shouldConsume},
    guardianDiary:first.guardianDiary,
    writesPerformed:0,
