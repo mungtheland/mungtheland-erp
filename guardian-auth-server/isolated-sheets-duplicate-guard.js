@@ -19,8 +19,10 @@ async function inspect({sheets,db}){
  const net=h.reduce((n,r)=>n+(r[2]==='차감'?1:r[2]==='복구'?-1:0),0);
  const total=Number(p[0][5]),used=Number(p[0][6]),remaining=Number(p[0][7]);
  const valid= b[0][2]===p[0][1]&&b[0][4]===PASS&&b[0][8]==='등원 중'&&b[0][9]==='차감'&&
-  total===8&&used===1&&remaining===7&&used+remaining===total&&net===1&&h.length===1&&
+  total===8&&used===1&&remaining===7&&used+remaining===total&&net===1&&h.length===3&&
   h[0][2]==='차감'&&Number(h[0][5])===-1&&Number(h[0][6])===8&&Number(h[0][7])===7&&
+  h[1][2]==='복구'&&Number(h[1][5])===1&&Number(h[1][6])===7&&Number(h[1][7])===8&&
+  h[2][2]==='차감'&&Number(h[2][5])===-1&&Number(h[2][6])===8&&Number(h[2][7])===7&&
   attendance.exists&&attendance.data().state==='등원 중'&&consumption.exists&&
   consumption.data().bookingId===BOOKING&&consumption.data().passId===PASS&&
   firePass.exists&&firePass.data().remaining===7;
