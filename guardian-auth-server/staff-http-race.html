@@ -1,0 +1,42 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>직원 2명 HTTP 동시 처리 검증</title><style>body{font:16px system-ui;max-width:650px;margin:28px auto;padding:16px}input,button{box-sizing:border-box;padding:12px;margin:6px 0;width:100%}pre{white-space:pre-wrap;background:#f2f3f5;padding:16px}button:disabled{opacity:.5}</style><h1>직원 A·B 실제 HTTP 동시 처리 검증</h1><p>격리 Firebase 및 신규 가상 예약만 사용. 비밀번호는 Firebase 로그인에만 사용하며 테스트 서버로 전송하거나 저장하지 않습니다.</p><label>직원 A 비밀번호<input id="passA" type="password" autocomplete="off"></label><label>직원 B 비밀번호<input id="passB" type="password" autocomplete="off"></label><button id="login">직원 A·B 인증</button><button id="in" disabled>동시 등원 요청 테스트</button><button id="out" disabled>동시 하원 요청 테스트</button><pre id="log">준비 중</pre><script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import {getAuth,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+const config={apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',authDomain:'mungtheland-guardian-test.firebaseapp.com',projectId:'mungtheland-guardian-test',appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'};
+const authA=getAuth(initializeApp(config,'http-race-A')),authB=getAuth(initializeApp(config,'http-race-B'));
+const $=id=>document.getElementById(id),write=s=>$('log').textContent+=s+'\n';
+let bookingId='',step=0,busy=false;
+try{const r=await fetch('/test-booking');if(!r.ok)throw Error('예약번호 조회 실패');bookingId=(await r.json()).bookingId;$('log').textContent='격리 테스트 예약: '+bookingId+'\n';}catch(e){$('log').textContent='초기화 실패: '+e.message;}
+$('login').onclick=async()=>{
+ if(busy||!bookingId)return;busy=true;$('login').disabled=true;
+ try{
+  await Promise.all([signInWithEmailAndPassword(authA,'likealake@gmail.com',$('passA').value),signInWithEmailAndPassword(authB,'likethelake@gmail.com',$('passB').value)]);
+  $('passA').value='';$('passB').value='';
+  const [a,b]=await Promise.all([authA.currentUser.getIdToken(true),authB.currentUser.getIdToken(true)]);
+  const results=await Promise.all([a,b].map(t=>fetch('/api/staff/bookings/'+bookingId+'/attendance',{headers:{Authorization:'Bearer '+t}})));
+  if(results.some(r=>!r.ok))throw Error('직원별 API 인증 실패: '+results.map(r=>r.status).join(', '));
+  write('직원 A·B Firebase 로그인 및 직원 API 인증 성공');
+  $('in').disabled=false;
+ }catch(e){write('인증 실패: '+e.message);}
+ finally{$('passA').value='';$('passB').value='';busy=false;$('login').disabled=false;}
+};
+async function race(action){
+ if(busy||!bookingId)return;busy=true;$('in').disabled=true;$('out').disabled=true;
+ try{
+  const tokens=await Promise.all([authA.currentUser.getIdToken(true),authB.currentUser.getIdToken(true)]);
+  const url='/api/staff/bookings/'+bookingId+'/attendance/'+action;
+  const responses=await Promise.all(tokens.map(t=>fetch(url,{method:'POST',headers:{Authorization:'Bearer '+t}})));
+  const statuses=responses.map(r=>r.status);
+  const detail=await fetch('/api/staff/bookings/'+bookingId+'/attendance',{headers:{Authorization:'Bearer '+tokens[0]}});
+  if(!detail.ok)throw Error('최종 상태 조회 실패 HTTP '+detail.status);
+  const body=await detail.json(),state=body.attendance;
+  const expected=action==='check-in'?'등원 중':'하원 완료';
+  const events=Number(Boolean(state.checkIn))+Number(Boolean(state.checkOut));
+  const pass=statuses.filter(x=>x===200).length===1&&statuses.filter(x=>x===409).length===1&&state.state===expected&&events===(action==='check-in'?1:2);
+  write(action+' 응답='+statuses.join('/')+' 상태='+state.state+' 이벤트='+events+' → '+(pass?'PASS':'FAIL'));
+  if(pass){step++;if(step===1)$('out').disabled=false;}
+ }catch(e){write(action+' 오류: '+e.message);}
+ finally{busy=false;}
+}
+$('in').onclick=()=>{if(step===0)void race('check-in');};
+$('out').onclick=()=>{if(step===1)void race('check-out');};
+</script></html>
