@@ -1,0 +1,17 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {planPassAdjustment:plan}=require('./isolated-sheets-pass-transition');
+const booking={bookingId:'RSV-TEST-NEW-003',dogId:'DOG-TEST-001',passId:'PASS-TEST-NEW-003',status:'예약',checkedInAt:'2026-11-07 09:00',attendance:'등원 중',deduction:'미차감',date:'2026-11-07'};
+const pass={passId:'PASS-TEST-NEW-003',dogId:'DOG-TEST-001',total:8,used:0,remaining:8,payment:'완료',status:'사용 가능',start:'2026-11-07',expiry:'2026-12-31'};
+const run=(overrides={})=>plan({booking:{...booking,...overrides.booking},pass:{...pass,...overrides.pass},history:overrides.history||[],type:overrides.type||'차감',today:'2026-11-07'});
+test('first check-in plans one deduction',()=>{const x=run();assert.equal(x.remaining,7);assert.equal(x.history.delta,-1);});
+test('duplicate committed booking produces no write',()=>{const x=run({booking:{deduction:'차감'},pass:{used:1,remaining:7},history:[{bookingId:booking.bookingId,passId:pass.passId,type:'차감'}]});assert.equal(x.decision,'ALREADY_DEDUCTED');assert.equal(x.write,false);});
+test('partial commit blocks further deduction',()=>assert.throws(()=>run({pass:{used:1,remaining:7},history:[{bookingId:booking.bookingId,passId:pass.passId,type:'차감'}]}),/INCONSISTENT_DEDUCTION/));
+test('requires recorded check-in',()=>assert.throws(()=>run({booking:{checkedInAt:''}}),/NO_VALID_CHECKIN/));
+test('rejects unbalanced pass',()=>assert.throws(()=>run({pass:{used:2}}),/INVALID_BALANCE/));
+test('rejects dog mismatch',()=>assert.throws(()=>run({pass:{dogId:'DOG-OTHER'}}),/LINK_MISMATCH/));
+test('rejects unpaid pass',()=>assert.throws(()=>run({pass:{payment:'미결제'}}),/PASS_NOT_USABLE/));
+test('rejects future visit',()=>assert.throws(()=>run({booking:{date:'2026-11-08'}}),/OUTSIDE_VALIDITY/));
+test('rejects double history',()=>assert.throws(()=>run({history:[{bookingId:booking.bookingId,passId:pass.passId,type:'차감'},{bookingId:booking.bookingId,passId:pass.passId,type:'차감'}]}),/INVALID_HISTORY_NET/));
+test('restore plans reversal',()=>{const x=run({type:'복구',booking:{deduction:'차감'},pass:{used:1,remaining:7},history:[{bookingId:booking.bookingId,passId:pass.passId,type:'차감'}]});assert.equal(x.remaining,8);assert.equal(x.history.delta,1);});
+test('cannot restore twice',()=>assert.throws(()=>run({type:'복구'}),/NOT_RESTORABLE/));
