@@ -66,7 +66,7 @@ async function main(){
  const secondStaffId=process.env.MD_TEST_STAFF_2_ID;
  if([secondStaffUid,secondStaffEmail,secondStaffId].some(Boolean)&&![secondStaffUid,secondStaffEmail,secondStaffId].every(Boolean))throw Error('All secondary staff test identity settings are required');
  if(secondStaffUid&&(!staffUid||secondStaffUid===staffUid||secondStaffUid===uid||secondStaffUid===otherUid||
-    secondStaffEmail.toLowerCase()===staffEmail.toLowerCase()||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(secondStaffEmail)||
+    secondStaffEmail.toLowerCase()===staffEmail.toLowerCase()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(secondStaffEmail)||
     !/^STAFF-[A-Z0-9-]{1,64}$/.test(secondStaffId)||secondStaffId===staffId))
     throw Error('Invalid secondary staff test identity');
  const staffStore={findByFirebaseUid:async candidate=>{
