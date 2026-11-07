@@ -74,7 +74,7 @@ async function main(){
   if(candidate===secondStaffUid&&secondStaffUid)return {staffId:secondStaffId,email:secondStaffEmail.toLowerCase(),status:'active'};
   return null;
  }};
- const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId});
+ const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId,onDiagnostic:code=>process.stderr.write('[staff-test] AUTH_'+code+'\n')});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
  const firestoreEnabled=process.env.MD_TEST_ATTENDANCE_FIRESTORE==='enabled';
  if(firestoreEnabled&&attendancePersistEnabled)throw Error('Select only one attendance persistence mode');
