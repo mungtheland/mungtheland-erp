@@ -13,6 +13,7 @@ const {createIsolatedPassLedger}=require('./firestore-pass-ledger');
 const {createCheckInPassCoordinator}=require('./checkin-pass-coordinator');
 const {createCheckInPassHttpHandler}=require('./checkin-pass-http');
 const {createTestPassReconciliationHttpHandler}=require('./test-pass-reconciliation-http');
+const {createTestReconciliationRegistry,createTestReconciliationListHttpHandler}=require('./test-pass-reconciliation-list');
 const PROJECT='mungtheland-guardian-test';
 async function main(){
  if(process.env.MD_RUN_LIVE_ATTENDANCE_TEST!=='YES'||process.env.GOOGLE_CLOUD_PROJECT!==PROJECT||process.env.FIRESTORE_EMULATOR_HOST)throw Error('Isolated live test opt-in required');
@@ -37,6 +38,9 @@ async function main(){
   return actualPassLedger.consume(args);
  }}});
  const recoveryHandler=createCheckInPassHttpHandler({authenticateStaff:auth,coordinator:recoveryCoordinator,resolveTestPass:async id=>id===recoveryBookingId?{passId:recoveryPassId,customerId:recoveryCustomerId}:null});
+ const registry=createTestReconciliationRegistry({db,projectId:PROJECT});
+ await registry.register({bookingId:recoveryBookingId,passId:recoveryPassId,customerId:recoveryCustomerId});
+ const reconciliationListHandler=createTestReconciliationListHttpHandler({authenticateStaff:auth,registry});
  const reconciliationHandler=createTestPassReconciliationHttpHandler({authenticateStaff:auth,db,bookingId:recoveryBookingId,passId:recoveryPassId});
  await db.collection('pass_ledger_test_v1').doc(recoveryPassId).create({total:8,remaining:8,customerId:recoveryCustomerId,createdBy:'staff-http-recovery-server'});
  const handler=createStaffArrivalHttpHandler({authenticateStaff:auth,staffAttendance:attendance,bookingRepository:repo,staffArrival:{},writeEnabled:false});
@@ -56,6 +60,7 @@ async function main(){
   }
   if(req.method==='GET'&&req.url==='/test-booking'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({bookingId}));return;}
   if(req.headers.origin&&req.headers.origin!=='http://127.0.0.1:'+port){res.writeHead(403);res.end();return;}
+  if(new URL(req.url,'http://localhost').pathname==='/api/staff/test-pass-reconciliation-list'){void reconciliationListHandler(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;}
   if(new URL(req.url,'http://localhost').pathname==='/api/staff/test-pass-reconciliation'){void reconciliationHandler(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;}
   if(new URL(req.url,'http://localhost').pathname.startsWith('/api/staff/test-bookings/')){void recoveryHandler(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;}
   if(new URL(req.url,'http://localhost').pathname.startsWith('/api/staff/bookings/')){void handler(req,res).catch(()=>{if(!res.headersSent)res.writeHead(500);res.end();});return;}
