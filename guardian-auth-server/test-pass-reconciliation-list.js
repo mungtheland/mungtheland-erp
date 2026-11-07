@@ -20,6 +20,14 @@ function createTestReconciliationRegistry({db,projectId}){
    }else tx.create(ref,{bookingId,passId,customerId,createdAt:new Date().toISOString()});
   });
  }
+ async function getBinding(bookingId){
+  if(!BOOKING.test(bookingId||''))return null;
+  const snap=await bindings.doc(bookingId).get();
+  if(!snap.exists)return null;
+  const value=snap.data();
+  if(value.bookingId!==bookingId||!PASS.test(value.passId||'')||!CUSTOMER.test(value.customerId||''))throw Error('Invalid binding');
+  return {bookingId,passId:value.passId,customerId:value.customerId};
+ }
  async function list({limit=100}={}){
   if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid limit');
   const snaps=await bindings.orderBy('createdAt','desc').limit(limit).get();
@@ -39,7 +47,7 @@ function createTestReconciliationRegistry({db,projectId}){
   }));
   return {items:results.filter(x=>x.status==='pending'),checked:results.length,hasMore:snaps.size===limit,invalidCount:results.filter(x=>x.status==='invalid-binding').length};
  }
- return {register,list};
+ return {register,list,getBinding};
 }
 function createTestReconciliationListHttpHandler({authenticateStaff,registry}){
  if(typeof authenticateStaff!=='function'||typeof registry?.list!=='function')throw Error('Missing dependencies');
