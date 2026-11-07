@@ -1,0 +1,15 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {projectAttendance}=require('./attendance-pass-diary-projection');
+const bookingId='RSV-INTEGRATION-TEST-001';
+const checkIn={bookingId,eventId:'E1',action:'check-in',at:'2026-11-07T01:00:00.000Z',staffId:'STAFF-TEST-001'};
+const checkOut={bookingId,eventId:'E2',action:'check-out',at:'2026-11-07T07:00:00.000Z',staffId:'STAFF-TEST-002'};
+const pass={total:8,remaining:8,consumedBookingIds:[]};
+test('reserved booking does not consume pass',()=>{const r=projectAttendance({bookingId,events:[],pass});assert.equal(r.pass.after,8);assert.equal(r.guardianDiary.status,'예약');});
+test('check-in proposes exactly one deduction and diary arrival',()=>{const r=projectAttendance({bookingId,events:[checkIn],pass});assert.equal(r.pass.after,7);assert.equal(r.pass.consumptionKey,'PASS:'+bookingId);assert.equal(r.guardianDiary.checkInAt,checkIn.at);});
+test('checkout does not propose a second deduction',()=>{const r=projectAttendance({bookingId,events:[checkIn,checkOut],pass});assert.equal(r.pass.after,7);assert.equal(r.guardianDiary.checkOutAt,checkOut.at);assert.equal(r.guardianDiary.status,'하원 완료');});
+test('re-reading consumed booking does not deduct again',()=>{const r=projectAttendance({bookingId,events:[checkIn,checkOut],pass:{...pass,remaining:7,consumedBookingIds:[bookingId]}});assert.equal(r.pass.after,7);assert.equal(r.pass.shouldConsume,false);});
+test('zero remaining balance rejects new consumption',()=>assert.throws(()=>projectAttendance({bookingId,events:[checkIn],pass:{total:8,remaining:0,consumedBookingIds:[]}}),/Insufficient/));
+test('duplicate attendance event rejected',()=>assert.throws(()=>projectAttendance({bookingId,events:[checkIn,checkIn],pass}),/Invalid event/));
+test('checkout before check-in rejected',()=>assert.throws(()=>projectAttendance({bookingId,events:[checkOut],pass}),/Invalid attendance sequence/));
+test('does not invent diary photos or notes',()=>{const r=projectAttendance({bookingId,events:[checkIn,checkOut],pass});assert.deepEqual(r.guardianDiary.photos,[]);assert.equal(r.guardianDiary.notes,null);});
