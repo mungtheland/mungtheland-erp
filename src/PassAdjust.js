@@ -43,7 +43,10 @@ function mdPassAdjust_(data){
     if(type==='차감'){
       if(linked&&linked!==passId)throw Error('다른 이용권이 연결된 예약입니다.');
       if((deduction==='차감')!==(net===1))throw Error('예약 차감상태와 변동이력이 불일치합니다. 관리자 점검이 필요합니다.');
-      if(deduction==='차감'&&net===1)return {bookingId,passId,alreadyDeducted:true,remainingCount:remaining};
+      if(deduction==='차감'&&net===1){
+        if(linked!==passId)throw Error('차감 이력과 예약의 이용권 연결이 불일치합니다. 관리자 점검이 필요합니다.');
+        return {bookingId,passId,alreadyDeducted:true,remainingCount:remaining};
+      }
       if(deduction!=='미차감'&&deduction!=='복구')throw Error('예약 차감상태가 올바르지 않습니다.');
       if(p[13]!=='완료'||!['사용 가능','소진'].includes(String(p[14])))throw Error('결제 완료된 사용 가능 이용권만 차감할 수 있습니다.');
       if(remaining<1)throw Error('잔여 횟수가 없습니다.');
