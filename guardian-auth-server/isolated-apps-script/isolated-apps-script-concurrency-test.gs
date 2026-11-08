@@ -15,8 +15,8 @@ function mdIsolatedConcurrencyRun_(label){
   console.log(JSON.stringify({label,phase:'START',at:startedAt}));
   const result=mdIsolatedPassAdjust_({
     confirm:'ISOLATED_TEST_ONLY',
-    bookingId:'RSV-TEST-CONCURRENT-003',
-    passId:'PASS-TEST-CONCURRENT-003',
+    bookingId:'RSV-TEST-CONCURRENT-004',
+    passId:'PASS-TEST-CONCURRENT-004',
     type:'차감',
     operator:'STAFF-TEST-CONCURRENT',
     reason:'isolated simultaneous lock test'
