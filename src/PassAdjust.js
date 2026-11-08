@@ -12,7 +12,17 @@ function mdPassAdjust_(data){
   try{
     mdCheckSetup();
     const bookingSheet=mdSheet_('예약·등하원관리'),passSheet=mdSheet_('이용권관리');
-    const bRow=mdFindById_(bookingSheet,bookingId),pRow=mdFindById_(passSheet,passId);
+    // Fail closed when a booking/pass ID appears more than once in its source sheet.
+    const uniqueRow=(sheet,id)=>{
+      const last=sheet.getLastRow();
+      if(last<2)return -1;
+      const rows=sheet.getRange(2,1,last-1,1).getDisplayValues();
+      const matches=[];
+      rows.forEach((r,i)=>{if(r[0]===id)matches.push(i+2);});
+      if(matches.length>1)throw Error('중복 ID가 발견되어 처리를 중단했습니다: '+id);
+      return matches.length?matches[0]:-1;
+    };
+    const bRow=uniqueRow(bookingSheet,bookingId),pRow=uniqueRow(passSheet,passId);
     if(bRow<2||pRow<2)throw Error('예약 또는 이용권을 찾을 수 없습니다.');
     const b=bookingSheet.getRange(bRow,1,1,11).getValues()[0];
     const p=passSheet.getRange(pRow,1,1,15).getValues()[0];
@@ -32,7 +42,8 @@ function mdPassAdjust_(data){
     if(net<0||net>1)throw Error('차감 이력 불일치: 수동 점검이 필요합니다.');
     if(type==='차감'){
       if(linked&&linked!==passId)throw Error('다른 이용권이 연결된 예약입니다.');
-      if(deduction==='차감'||net===1)return {bookingId,passId,alreadyDeducted:true,remainingCount:remaining};
+      if((deduction==='차감')!==(net===1))throw Error('예약 차감상태와 변동이력이 불일치합니다. 관리자 점검이 필요합니다.');
+      if(deduction==='차감'&&net===1)return {bookingId,passId,alreadyDeducted:true,remainingCount:remaining};
       if(deduction!=='미차감'&&deduction!=='복구')throw Error('예약 차감상태가 올바르지 않습니다.');
       if(p[13]!=='완료'||!['사용 가능','소진'].includes(String(p[14])))throw Error('결제 완료된 사용 가능 이용권만 차감할 수 있습니다.');
       if(remaining<1)throw Error('잔여 횟수가 없습니다.');
