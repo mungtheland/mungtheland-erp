@@ -8,14 +8,15 @@ const MD_ISOLATED_BOOKING_ID='RSV-TEST-PARITY-002';
 const MD_ISOLATED_PASS_ID='PASS-TEST-PARITY-002';
 function mdIsolatedPassAdjust_(request){
   if(!request||request.confirm!=='ISOLATED_TEST_ONLY'||!((request.bookingId===MD_ISOLATED_BOOKING_ID&&request.passId===MD_ISOLATED_PASS_ID)||
-       (request.bookingId==='RSV-TEST-CONCURRENT-003'&&request.passId==='PASS-TEST-CONCURRENT-003'))||!['차감','복구'].includes(request.type))
+       (request.bookingId==='RSV-TEST-CONCURRENT-003'&&request.passId==='PASS-TEST-CONCURRENT-003')||
+       (request.bookingId==='RSV-TEST-CONCURRENT-004'&&request.passId==='PASS-TEST-CONCURRENT-004'))||!['차감','복구'].includes(request.type))
     throw Error('ISOLATION_GUARD');
   if(request.type==='복구'&&!String(request.reason||'').trim())throw Error('RESTORE_REASON_REQUIRED');
   const lock=LockService.getScriptLock();
   lock.waitLock(30000);
   try{
     // Test-only delay to make overlapping editor executions observable.
-    if(request.bookingId==='RSV-TEST-CONCURRENT-003')Utilities.sleep(6000);
+    if(['RSV-TEST-CONCURRENT-003','RSV-TEST-CONCURRENT-004'].includes(request.bookingId))Utilities.sleep(6000);
     const book=SpreadsheetApp.openById(MD_ISOLATED_SHEET_ID);
     const bs=book.getSheetByName('예약·등하원관리'),ps=book.getSheetByName('이용권관리'),hs=book.getSheetByName('_이용권변동이력');
     if(!bs||!ps||!hs)throw Error('SCHEMA_MISSING');
