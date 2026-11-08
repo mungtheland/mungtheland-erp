@@ -7,8 +7,8 @@ const MD_ISOLATED_SHEET_ID='1ReLidmaD4XOBI0IRS09uDL44_RICfQ-VO2ljx4q_gYY';
 const MD_ISOLATED_BOOKING_ID='RSV-TEST-PARITY-002';
 const MD_ISOLATED_PASS_ID='PASS-TEST-PARITY-002';
 function mdIsolatedPassAdjust_(request){
-  if(!request||request.confirm!=='ISOLATED_TEST_ONLY'||request.bookingId!==MD_ISOLATED_BOOKING_ID||
-     request.passId!==MD_ISOLATED_PASS_ID||!['차감','복구'].includes(request.type))
+  if(!request||request.confirm!=='ISOLATED_TEST_ONLY'||!((request.bookingId===MD_ISOLATED_BOOKING_ID&&request.passId===MD_ISOLATED_PASS_ID)||
+       (request.bookingId==='RSV-TEST-CONCURRENT-003'&&request.passId==='PASS-TEST-CONCURRENT-003'))||!['차감','복구'].includes(request.type))
     throw Error('ISOLATION_GUARD');
   if(request.type==='복구'&&!String(request.reason||'').trim())throw Error('RESTORE_REASON_REQUIRED');
   const lock=LockService.getScriptLock();
