@@ -14,6 +14,8 @@ function mdIsolatedPassAdjust_(request){
   const lock=LockService.getScriptLock();
   lock.waitLock(30000);
   try{
+    // Test-only delay to make overlapping editor executions observable.
+    if(request.bookingId==='RSV-TEST-CONCURRENT-003')Utilities.sleep(6000);
     const book=SpreadsheetApp.openById(MD_ISOLATED_SHEET_ID);
     const bs=book.getSheetByName('예약·등하원관리'),ps=book.getSheetByName('이용권관리'),hs=book.getSheetByName('_이용권변동이력');
     if(!bs||!ps||!hs)throw Error('SCHEMA_MISSING');
