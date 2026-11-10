@@ -3,8 +3,8 @@
  * 격리 테스트용: 테스트 시트의 이력 헤더만 적용. 운영 환경 배포 금지.
  * 시트 생성/수정, 로그 삭제, 배포를 수행하지 않는다.
  */
-function mdPreflightPassReadOnly(){
-  const book=mdBook_();
+function mdPreflightPassReadOnly(bookOverride){
+  const book=bookOverride||mdBook_();
   const findings=[];
   const counts={bookings:0,passes:0,history:0};
   const add=(severity,code,detail)=>findings.push({severity,code,detail});
