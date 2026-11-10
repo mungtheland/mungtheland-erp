@@ -5,7 +5,7 @@
   "description": "Mungtheland Google Apps Script ERP",
   "scripts": {
     "check": "node tests/source-syntax.test.js",
-    "test:ci": "node tests/passes.integration.test.js && node tests/attendance.integration.test.js && node tests/booking-create.integration.test.js && node tests/booking-change.integration.test.js && node tests/integrity.integration.test.js && node tests/accounting-integrity.integration.test.js && node tests/settlement.integration.test.js && node tests/passes.ui.test.js && node tests/backup.integration.test.js && node tests/backup-retention.integration.test.js && node tests/operational-journey.integration.test.js && node tests/backup-recovery.integration.test.js && node tests/backup-monitoring-diagnostics.integration.test.js && node tests/backup-restore-rehearsal.integration.test.js"
+    "test:ci": "node tests/pass-adjust-release-candidate.integration.test.js && node tests/passes.integration.test.js && node tests/attendance.integration.test.js && node tests/booking-create.integration.test.js && node tests/booking-change.integration.test.js && node tests/integrity.integration.test.js && node tests/accounting-integrity.integration.test.js && node tests/settlement.integration.test.js && node tests/passes.ui.test.js && node tests/backup.integration.test.js && node tests/backup-retention.integration.test.js && node tests/operational-journey.integration.test.js && node tests/backup-recovery.integration.test.js && node tests/backup-monitoring-diagnostics.integration.test.js && node tests/backup-restore-rehearsal.integration.test.js"
   },
   "devDependencies": {
     "@google/clasp": "^3.0.0"
