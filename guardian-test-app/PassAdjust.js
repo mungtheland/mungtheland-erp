@@ -1,6 +1,6 @@
 /**
  * 멍더랜드 이용권 차감/복구 운영 배포 후보 (미배포).
- * 격리 테스트 코드에서 오류 주입 및 테스트 진단 로그를 제거한 버전.
+ * 격리 테스트 전용 임시 오류 주입 버전. 운영 배포 금지.
  * 검증·승인 전 src/PassAdjust.js를 교체하지 말 것.
  */
 /** 수동 이용권 차감/복구 V1: 예약 1건당 1회, 숨김 이력 시트에 감사기록. */
@@ -88,8 +88,10 @@ lock.waitLock(30000);
     try{
       ledger.appendRow([entryId,new Date(),type,passId,bookingId,type==='차감'?-1:1,remaining,nextRemaining,operator,reason]);
       SpreadsheetApp.flush();
+      if (String(bookingId).startsWith('RSV-RB-') && String(passId).startsWith('PASS-RB-') && data.testFailurePoint === 'AFTER_LEDGER_APPEND') throw Error('TEST_INJECTED_FAILURE_AFTER_LEDGER_APPEND');
       passSheet.getRange(pRow,7,1,2).setValues([[nextUsed,nextRemaining]]);
       passSheet.getRange(pRow,15).setValue(nextStatus);
+      if (String(bookingId).startsWith('RSV-RB-') && String(passId).startsWith('PASS-RB-') && data.testFailurePoint === 'AFTER_PASS_UPDATE') throw Error('TEST_INJECTED_FAILURE_AFTER_PASS_UPDATE');
       bookingSheet.getRange(bRow,5).setValue(passId);
       bookingSheet.getRange(bRow,10).setValue(nextDeduction);
       SpreadsheetApp.flush();
