@@ -1,3 +1,8 @@
+/**
+ * 멍더랜드 이용권 차감/복구 운영 배포 후보 (미배포).
+ * 격리 테스트 코드에서 오류 주입 및 테스트 진단 로그를 제거한 버전.
+ * 검증·승인 전 src/PassAdjust.js를 교체하지 말 것.
+ */
 /** 수동 이용권 차감/복구 V1: 예약 1건당 1회, 숨김 이력 시트에 감사기록. */
 function mdPassAdjust_(data){
   data=data||{};
@@ -9,14 +14,10 @@ function mdPassAdjust_(data){
   if(type==='복구')mdAuditReason_(data,'복구');
   const humanOperator=mdAuditOperator_(data);
   const lock=LockService.getScriptLock();
-const lockRequestTime=new Date().toISOString();
-Logger.log('LOCK REQUEST: '+lockRequestTime);
-
 lock.waitLock(30000);
-Logger.log('LOCK ACQUIRED: '+new Date().toISOString());
-SpreadsheetApp.flush();
-
-try{    mdCheckSetup();
+  try{
+    SpreadsheetApp.flush();
+    mdCheckSetup();
     const bookingSheet=mdSheet_('예약·등하원관리'),passSheet=mdSheet_('이용권관리');
     // Fail closed when a booking/pass ID appears more than once in its source sheet.
     const uniqueRow=(sheet,id)=>{
@@ -46,17 +47,6 @@ try{    mdCheckSetup();
     const history=ledger.getLastRow()>1?ledger.getRange(2,1,ledger.getLastRow()-1,10).getDisplayValues().filter(r=>r[3]===passId&&r[4]===bookingId):[];
     const net=history.reduce((n,r)=>n+(r[2]==='차감'?1:r[2]==='복구'?-1:0),0);
 
-Logger.log('STATE DIAG: ' + JSON.stringify({
-  bookingId: bookingId,
-  passId: passId,
-  deduction: deduction,
-  linked: linked,
-  used: used,
-  remaining: remaining,
-  historyCount: history.length,
-  net: net,
-  timestamp: new Date().toISOString()
-}));
 
     if(net<0||net>1)throw Error('차감 이력 불일치: 수동 점검이 필요합니다.');
     if(type==='차감'){
@@ -89,12 +79,6 @@ Logger.log('STATE DIAG: ' + JSON.stringify({
     const oldStatus=passSheet.getRange(pRow,15).getValue();
     const oldBooking=bookingSheet.getRange(bRow,5).getValue();
     const oldDeduction=bookingSheet.getRange(bRow,10).getValue();
-    // Only isolated test fixtures can request deterministic failure injection.
-    const failurePoint=String(data.testFailurePoint||'');
-    if(failurePoint&&(!bookingId.startsWith('RSV-RB-')||!passId.startsWith('PASS-RB-')||
-        !['AFTER_LEDGER_APPEND','AFTER_PASS_UPDATE'].includes(failurePoint))){
-      throw Error('허용되지 않은 테스트 오류 주입 요청입니다.');
-    }
     const findEntryRows=()=>{
       const last=ledger.getLastRow();
       if(last<2)return [];
@@ -104,14 +88,8 @@ Logger.log('STATE DIAG: ' + JSON.stringify({
     try{
       ledger.appendRow([entryId,new Date(),type,passId,bookingId,type==='차감'?-1:1,remaining,nextRemaining,operator,reason]);
       SpreadsheetApp.flush();
-      if(failurePoint==='AFTER_LEDGER_APPEND')
-        throw Error('TEST_INJECTED_FAILURE_AFTER_LEDGER_APPEND');
       passSheet.getRange(pRow,7,1,2).setValues([[nextUsed,nextRemaining]]);
       passSheet.getRange(pRow,15).setValue(nextStatus);
-      if(failurePoint==='AFTER_PASS_UPDATE'){
-        SpreadsheetApp.flush();
-        throw Error('TEST_INJECTED_FAILURE_AFTER_PASS_UPDATE');
-      }
       bookingSheet.getRange(bRow,5).setValue(passId);
       bookingSheet.getRange(bRow,10).setValue(nextDeduction);
       SpreadsheetApp.flush();
@@ -145,10 +123,9 @@ Logger.log('STATE DIAG: ' + JSON.stringify({
       throw e;
     }
     return {bookingId,passId,type,usedCount:nextUsed,remainingCount:nextRemaining,status:nextStatus,historyId:entryId,automaticDeduction:false};
- }finally{
-  Logger.log('LOCK RELEASING: '+new Date().toISOString());
-  lock.releaseLock();
-}
+  }finally{
+    lock.releaseLock();
+  }
 }
 function mdDeductPass(data){return mdPassAdjust_(Object.assign({},data,{type:'차감'}));}
 function mdRestorePass(data){return mdPassAdjust_(Object.assign({},data,{type:'복구'}));}
