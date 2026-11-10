@@ -22,7 +22,7 @@ function mdRunPassRollbackTest(){
     SpreadsheetApp.flush();
     let error='';
     try{
-      mdDeductPass({bookingId,passId,operator:'격리테스트',reason:'롤백 검증',
+      mdDeductPass({bookingId,passId,operator:'신송이',reason:'롤백 검증',
         testFailurePoint:point});
     }catch(e){error=String(e.message);}
     const booking=bookingSheet.getDataRange().getValues()
