@@ -89,26 +89,59 @@ Logger.log('STATE DIAG: ' + JSON.stringify({
     const oldStatus=passSheet.getRange(pRow,15).getValue();
     const oldBooking=bookingSheet.getRange(bRow,5).getValue();
     const oldDeduction=bookingSheet.getRange(bRow,10).getValue();
-    let ledgerRow=0;
+    // Only isolated test fixtures can request deterministic failure injection.
+    const failurePoint=String(data.testFailurePoint||'');
+    if(failurePoint&&(!bookingId.startsWith('RSV-RB-')||!passId.startsWith('PASS-RB-')||
+        !['AFTER_LEDGER_APPEND','AFTER_PASS_UPDATE'].includes(failurePoint))){
+      throw Error('허용되지 않은 테스트 오류 주입 요청입니다.');
+    }
+    const findEntryRows=()=>{
+      const last=ledger.getLastRow();
+      if(last<2)return [];
+      return ledger.getRange(2,1,last-1,1).getDisplayValues()
+        .reduce((rows,r,i)=>{if(r[0]===entryId)rows.push(i+2);return rows;},[]);
+    };
     try{
       ledger.appendRow([entryId,new Date(),type,passId,bookingId,type==='차감'?-1:1,remaining,nextRemaining,operator,reason]);
-      ledgerRow=ledger.getLastRow();
+      SpreadsheetApp.flush();
+      if(failurePoint==='AFTER_LEDGER_APPEND')
+        throw Error('TEST_INJECTED_FAILURE_AFTER_LEDGER_APPEND');
       passSheet.getRange(pRow,7,1,2).setValues([[nextUsed,nextRemaining]]);
       passSheet.getRange(pRow,15).setValue(nextStatus);
+      if(failurePoint==='AFTER_PASS_UPDATE'){
+        SpreadsheetApp.flush();
+        throw Error('TEST_INJECTED_FAILURE_AFTER_PASS_UPDATE');
+      }
       bookingSheet.getRange(bRow,5).setValue(passId);
       bookingSheet.getRange(bRow,10).setValue(nextDeduction);
       SpreadsheetApp.flush();
     }catch(e){
-      let rollbackFailed=false;
+      let rollbackError=null;
       try{
         passSheet.getRange(pRow,7,1,2).setValues([oldPass]);
         passSheet.getRange(pRow,15).setValue(oldStatus);
         bookingSheet.getRange(bRow,5).setValue(oldBooking);
         bookingSheet.getRange(bRow,10).setValue(oldDeduction);
-        if(ledgerRow&&ledger.getRange(ledgerRow,1).getDisplayValue()===entryId)ledger.deleteRow(ledgerRow);
         SpreadsheetApp.flush();
-      }catch(rollbackError){rollbackFailed=true;Logger.log('ROLLBACK FAILED '+rollbackError);}
-      if(rollbackFailed)throw Error('처리 중 오류 및 복구 실패: 관리자에게 이력 점검을 요청하세요. '+e.message);
+        const rows=findEntryRows();
+        if(rows.length>1)throw Error('중복 이력 ID 발견');
+        if(rows.length===1)ledger.deleteRow(rows[0]);
+        SpreadsheetApp.flush();
+        const actualPass=passSheet.getRange(pRow,7,1,2).getValues()[0];
+        const actualStatus=passSheet.getRange(pRow,15).getValue();
+        const actualBooking=bookingSheet.getRange(bRow,5).getValue();
+        const actualDeduction=bookingSheet.getRange(bRow,10).getValue();
+        if(actualPass[0]!==oldPass[0]||actualPass[1]!==oldPass[1]||
+           actualStatus!==oldStatus||actualBooking!==oldBooking||
+           actualDeduction!==oldDeduction||findEntryRows().length!==0){
+          throw Error('롤백 후 데이터 불일치');
+        }
+      }catch(err){
+        rollbackError=err;
+        Logger.log('ROLLBACK FAILED: '+err);
+      }
+      if(rollbackError)throw Error('처리 중 오류 및 복구 실패: 관리자 점검 필요. 원인: '+
+        e.message+' / 복구 오류: '+rollbackError.message);
       throw e;
     }
     return {bookingId,passId,type,usedCount:nextUsed,remainingCount:nextRemaining,status:nextStatus,historyId:entryId,automaticDeduction:false};
