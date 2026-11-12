@@ -88,8 +88,18 @@ lock.waitLock(30000);
     try{
       ledger.appendRow([entryId,new Date(),type,passId,bookingId,type==='차감'?-1:1,remaining,nextRemaining,operator,reason]);
       SpreadsheetApp.flush();
+      // Test-only failure injection, restricted to the dedicated isolated spreadsheet.
+      if(data.testFailurePoint==='AFTER_LEDGER_APPEND'){
+        if(mdBook_().getId()!=='1ReLidmaD4XOBI0IRS09uDL44_RICfQ-VO2ljx4q_gYY')throw Error('테스트 격리 환경이 아닙니다.');
+        throw Error('TEST_INJECTED_FAILURE_AFTER_LEDGER_APPEND');
+      }
       passSheet.getRange(pRow,7,1,2).setValues([[nextUsed,nextRemaining]]);
       passSheet.getRange(pRow,15).setValue(nextStatus);
+      if(data.testFailurePoint==='AFTER_PASS_UPDATE'){
+        if(mdBook_().getId()!=='1ReLidmaD4XOBI0IRS09uDL44_RICfQ-VO2ljx4q_gYY')throw Error('테스트 격리 환경이 아닙니다.');
+        SpreadsheetApp.flush();
+        throw Error('TEST_INJECTED_FAILURE_AFTER_PASS_UPDATE');
+      }
       bookingSheet.getRange(bRow,5).setValue(passId);
       bookingSheet.getRange(bRow,10).setValue(nextDeduction);
       SpreadsheetApp.flush();
