@@ -29,7 +29,7 @@ function mdTallyOpenHouseIntegrationSafetyAudit_TEST_ONLY(){
  const m=mock.filter(x=>x[0]==='MOCK-DISCOUNT:STEP31-001');
  check('single_mock_discount_ledger',m.length===1&&m[0][15]==='모의기록(실제승인아님)');
  check('mock_discount_math',Number(m[0][8])===0.25&&Number(m[0][9])===228000&&Number(m[0][10])===57000&&Number(m[0][11])===171000&&Number(m[0][12])===171000);
- check('no_live_pass_issuance_in_staging',issue.every(x=>String(x[8])==='실제 ERP 발급 없음'));
+ check('no_live_pass_issuance_in_staging',issue.every(x=>String(x[4])==='발급완료(모의)'&&String(x[5]).startsWith('MOCK-')&&String(x[9])==='실제 ERP 발급 없음'));
  const p=Object.fromEntries(discounts.map(x=>[String(x[0]),x]));
  check('three_discount_policies_confirmed',['COMPANION','MULTIDOG','OPENHOUSE'].every(k=>p[k]&&p[k][5]==='정책확정'));
  const result={passed:true,checksPassed:checks.length,stagingReceiptCount:intake.length,realTallyReceiptsReviewed:2,
