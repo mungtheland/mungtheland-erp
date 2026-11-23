@@ -24,7 +24,7 @@ function mdOpenHouseMockAttendanceAudit_TEST_ONLY(){
   if(String(row[6])!==receiptKey||String(row[2])!=='GUARDIAN:TEST-STEP26')throw Error('Not synthetic target');
   const receipts=queue.getDataRange().getValues().slice(1).filter(r=>String(r[0])===receiptKey);
   if(receipts.length!==1)throw Error('Synthetic Tally receipt missing or duplicate');
-  const otherLinks=v.slice(1).filter((r,i)=>i!==idx&&String(r[6])===receiptKey);
+  const otherLinks=v.slice(1).filter((r,i)=>i+1!==idx&&String(r[6])===receiptKey);
   if(otherLinks.length)throw Error('Receipt linked to multiple visits');
   const ar=audit.getDataRange().getValues().slice(1);
   const existing=ar.filter(r=>String(r[0])===auditKey);
