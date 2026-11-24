@@ -1,42 +1,30 @@
 # Codex work report
 
-- Step: 35
-- Work time (KST): 2026-11-24T14:14:51.554+09:00
+- Step: routine-confirmation
+- Work time (KST): 2026-11-24T14:21:38.684+09:00
 - Branch: feature/staff-attendance-desktop
-- Implementation commit: 59fe747abfefc429ba1676d0ed078f81b47369cb
+- Implementation commit: 66f6bdc8becf1fe683a6e0bf000e95f3d438d59a
 - Implementation push: pushed
-- History: history/20261124T141451554-35-59fe747abfef.md
+- History: history/20261124T142138684-routine-confirmation-66f6bdc8becf.md
 
 ## Changed files
 
-- guardian-auth-server/cloud-attendance-preflight.test.js
-- guardian-auth-server/firestore-attendance-activation.md
-- guardian-auth-server/local-server.js
-- guardian-auth-server/staff-arrival-http.js
+- AGENTS.md
 
 ## Tests
 
 | Command | Status | Passed | Failed | Not run |
 | --- | --- | ---: | ---: | ---: |
-| node --test $files | executed | 161 | 0 | 0 |
-| node --test guardian-auth-server/staff-attendance.browser.cjs | executed | 4 | 0 | 0 |
-| node --test guardian-auth-server/firestore-attendance.emulator.cjs | executed | 10 | 0 | 0 |
-| node on stdin for Admin SDK settings inspection | executed | 1 | 0 | 0 |
-| node --check $p | executed | 3 | 0 | 0 |
 | git diff --cached --check | executed | 1 | 0 | 0 |
-| 실제 클라우드 IAM과 ADC 유효성 및 게시된 보안 규칙 확인 | not run | 0 | 0 | 1 |
-| 실제 데이터베이스 존재와 네트워크 및 영구 저장 통합 검증 | not run | 0 | 0 | 1 |
+| 직원 출석 기능 회귀 테스트 묶음 | not run | 0 | 0 | 1 |
 
-- Totals: passed 180, failed 0, not run 2
+- Totals: passed 1, failed 0, not run 1
 
 ## Change summary
 
-- 기본 메모리 모드와 기존 격리 Sheets 모드는 유지했습니다. 현재 점검 셸에서 쓰기 활성화 플래그는 확인되지 않았습니다.
-- Firestore 모드의 프로젝트·기본 데이터베이스·연결 대상 확인을 강화하고 에뮬레이터 혼용 및 Sheets 쓰기 동시 활성화를 거부합니다.
-- 의도하지 않은 쓰기를 줄이기 위해 허용된 가상 예약 한 건만 직원 HTTP 쓰기로 지정합니다. 기존 저장 모델과 읽기 흐름은 유지했습니다.
-- 설치된 Admin SDK 클라이언트의 기본 데이터베이스 설정을 TCP 차단 상태에서 확인했습니다. 실제 Firestore 연결은 요청하지 않았습니다.
-- 활성화 전 확인과 롤백 절차를 문서화했습니다. 최초 로컬 SDK 점검의 모듈 경로 오류는 서버 디렉터리 기준 실행으로 해결했습니다.
-- Node 묶음에는 신규 사전 점검 사례 5개가 포함됩니다. Chromium과 에뮬레이터 수는 하위 시나리오만 집계합니다.
+- 승인된 범위의 일반 작업은 Y/N 재확인 없이 실행하고, 기술 선택과 안전한 재시도는 Codex가 담당하도록 명시했습니다.
+- 기존 사전 승인 규칙과 충돌하지 않도록 별도 소절만 추가했습니다. 승인 불가 시 독립적으로 안전한 작업은 계속합니다.
+- 완료 답변에는 결과와 예외 사항만 포함하도록 명시했습니다.
 
 ## Failure causes
 
@@ -44,9 +32,8 @@
 
 ## Remaining risks
 
-- 실제 클라우드 IAM 권한과 네트워크 연결은 확인이 필요합니다.
-- 가상 예약 여부와 유효한 인증 주체는 로컬 정책만으로 확정할 수 없습니다.
+- 실행 환경이 요구하는 보안 승인 프롬프트는 계속 적용됩니다.
 
 ## Recommended next work
 
-- 실제 클라우드 검증 또는 권한 변경은 별도 명시적 승인과 문서 체크리스트 확인 후에만 진행합니다.
+- 후속 작업에서 요청 범위의 일반 명령은 다시 묻지 않고 진행합니다.
