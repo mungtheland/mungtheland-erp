@@ -13,6 +13,7 @@ const {createFirestoreAttendanceStore,createEmulatorAttendanceStore,EMULATOR_PRO
 const {createStaffAttendanceService}=require('./staff-attendance');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {runEmulatorProbe}=require('./firestore-attendance-write-probe');
+const {runEmulatorResidueCheck}=require('./firestore-attendance-residue-check');
 
 const [host,portText]=EMULATOR_HOST.split(':');
 const port=Number(portText);
@@ -289,6 +290,42 @@ if(process.argv[2]==='worker'){
    assert.equal(result.cleanup,'unconfirmed');
    assert.ok(result.createdUpdateTime);
    assert.equal((await reference.get()).data().fixture,'changed before delete');
+  });
+  await t.test('lost create response leaves a candidate but no complete ownership evidence',async()=>{
+   let attempt;
+   const result=await runEmulatorProbe({env:process.env,onCreateAttempt:(...values)=>{attempt=values;},
+    fetchRequest:async(raw,options)=>{
+     const response=await fetch(raw,options);
+     if(options.method==='POST'){
+      assert.ok(response.ok);
+      await response.arrayBuffer();
+      throw Error('Emulated create response loss');
+     }
+     return response;
+    }});
+   assert.equal(result.phase,'create');
+   assert.equal(result.createdUpdateTime,undefined);
+   assert.deepEqual(await runEmulatorResidueCheck({env:process.env,args:['--inspect',...attempt]}),{
+    status:'present',documentId:attempt[0],fixtureMatches:true,fingerprintMatches:true,versionMatches:null,evidenceMatches:false
+   });
+  });
+  await t.test('read-only inspection confirms absence after a lost cleanup response',async()=>{
+   let confirmed;
+   const result=await runEmulatorProbe({env:process.env,onCreateConfirmed:(...values)=>{confirmed=values;},
+    fetchRequest:async(raw,options)=>{
+     const response=await fetch(raw,options);
+     if(new URL(raw).pathname.endsWith(':commit')){
+      assert.ok(response.ok);
+      await response.arrayBuffer();
+      throw Error('Emulated cleanup response loss');
+     }
+     return response;
+    }});
+   assert.equal(result.phase,'delete');
+   assert.equal(result.cleanup,'unconfirmed');
+   assert.deepEqual(await runEmulatorResidueCheck({env:process.env,args:['--inspect',...confirmed]}),{
+    status:'absent',documentId:confirmed[0]
+   });
   });
   await t.test('plain emulator restart resets data; importing a snapshot restores it',async()=>{
    const original=await client.store.read(persistedId);

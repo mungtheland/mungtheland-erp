@@ -51,6 +51,16 @@ test('cloud probe stops on wrong ADC, wrong database, wrong region or missing cl
  assert.deepEqual(calls,['GET','POST']);
 });
 
+test('approval arguments cannot override a conflicting project, emulator or active write flags',async()=>{
+ for(const conflicting of [
+  {GOOGLE_CLOUD_PROJECT:'other'},{FIRESTORE_EMULATOR_HOST:EMULATOR_HOST},
+  ...['MD_TEST_ATTENDANCE_FIRESTORE','MD_TEST_ATTENDANCE_PERSIST','MD_TEST_ARRIVAL_WRITE'].map(name=>({[name]:'enabled'}))
+ ]){
+  assert.deepEqual(await runCloudProbe({args:approved,env:conflicting,loadAdc:()=>adc,
+   getToken:forbidden,fetchRequest:forbidden}),{status:'failed',phase:'identity'});
+ }
+});
+
 test('explicit approved mock run stays on the fixed cloud project and pinned document version',async()=>{
  let document,steps=0,notified;
  const calls=[];
@@ -95,6 +105,45 @@ test('existing ID, create collision and lost create response never trigger DELET
   assert.equal(result.cleanup,mode==='existing'?undefined:'unconfirmed');
   assert.equal(result.createdUpdateTime,undefined);
   assert.doesNotMatch(JSON.stringify(result),/private fixture/);
+ }
+});
+
+test('post-creation read errors and cleanup errors do not retry or re-create',async()=>{
+ for(const failure of ['read timeout','read denied','delete denied','delete response lost','verification denied']){
+  let created,stage=0,confirmed;
+  const methods=[];
+  const result=await runEmulatorProbe({env,runId,onCreateConfirmed:(id,digest,updateTime)=>{
+   confirmed={id,digest,updateTime};
+  },fetchRequest:async(raw,options)=>{
+   const url=new URL(raw);
+   methods.push(options.method);
+   if(++stage===1)return reply(404,missing);
+   if(stage===2){
+    created={name:url.pathname.slice(4)+'/'+url.searchParams.get('documentId'),
+     fields:JSON.parse(options.body).fields,updateTime:version};
+    return reply(200,created);
+   }
+   if(stage===3){
+    if(failure==='read timeout')throw new DOMException('Fixture timeout','TimeoutError');
+    return failure==='read denied'?reply(403,{}):reply(200,created);
+   }
+   if(stage===4){
+    assert.ok(url.pathname.endsWith(':commit'));
+    assert.deepEqual(JSON.parse(options.body),{writes:[{delete:created.name,currentDocument:{updateTime:version}}]});
+    if(failure==='delete response lost')throw Error('Fixture connection lost');
+    return failure==='delete denied'?reply(403,{}):reply(200,{});
+   }
+   return reply(403,{});
+  }});
+  const expectedPhase=failure.split(' ')[0];
+  assert.equal(result.phase,expectedPhase==='verification'?'verifyDeletion':expectedPhase);
+  assert.equal(result.createdUpdateTime,version);
+  assert.equal(result.cleanup,'unconfirmed');
+  assert.equal(confirmed.id,result.documentId);
+  assert.match(confirmed.digest,/^[a-f0-9]{64}$/);
+  assert.equal(confirmed.updateTime,version);
+  assert.deepEqual(methods,['GET','POST','GET','POST','GET'].slice(0,
+   expectedPhase==='read'?3:expectedPhase==='delete'?4:5));
  }
 });
 
