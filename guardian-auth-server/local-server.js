@@ -17,19 +17,45 @@ const {createStaffAttendanceService}=require('./staff-attendance');
 const {createIsolatedAttendanceStore}=require('./isolated-attendance-store');
 const {createFirestoreAttendanceStore}=require('./firestore-attendance-store');
 const {createIsolatedSheetsBookingRepository,TEST_SPREADSHEET_ID}=require('./isolated-sheets-bookings');
+const projectId='mungtheland-guardian-test';
+const attendanceDatabase='(default)';
+
+function readTestServerSettings(env){
+ if(env.GOOGLE_CLOUD_PROJECT!==projectId)throw Error('Wrong Google Cloud project');
+ const arrivalWriteEnabled=env.MD_TEST_ARRIVAL_WRITE==='enabled';
+ const attendancePersistEnabled=env.MD_TEST_ATTENDANCE_PERSIST==='enabled';
+ const firestoreEnabled=env.MD_TEST_ATTENDANCE_FIRESTORE==='enabled';
+ if(!firestoreEnabled)return {firestoreEnabled,arrivalWriteEnabled,attendancePersistEnabled};
+ if(arrivalWriteEnabled||attendancePersistEnabled)throw Error('Cloud attendance requires Sheets writes to be disabled');
+ if(env.FIRESTORE_EMULATOR_HOST||env.FIREBASE_AUTH_EMULATOR_HOST)
+  throw Error('Cloud attendance cannot be combined with emulator settings');
+ if(env.FIREBASE_CONFIG||(env.GCLOUD_PROJECT&&env.GCLOUD_PROJECT!==projectId))
+  throw Error('Cloud attendance requires unambiguous project settings');
+ const attendanceWriteBookingId=env.MD_TEST_ATTENDANCE_BOOKING_ID;
+ if(typeof attendanceWriteBookingId!=='string'||!/^RSV-TEST-[A-Z0-9-]{1,59}$/.test(attendanceWriteBookingId))
+  throw Error('Cloud attendance requires one explicit test booking');
+ return {firestoreEnabled,arrivalWriteEnabled,attendancePersistEnabled,attendanceWriteBookingId};
+}
+
+function assertCloudAttendanceClient(db){
+ const settings=db?._settings;
+ if(db?.projectId!==projectId||db.databaseId!==attendanceDatabase||!settings||
+  (settings.ssl!==undefined&&settings.ssl!==true)||
+  (settings.servicePath!==undefined&&settings.servicePath!=='firestore.googleapis.com')||
+  (settings.port!==undefined&&settings.port!==443))
+  throw Error('Unexpected Firestore attendance target');
+}
+
 async function main(){
+ const {firestoreEnabled,arrivalWriteEnabled,attendancePersistEnabled,attendanceWriteBookingId}=readTestServerSettings(process.env);
  const {getAuth}=require('firebase-admin/auth');
  const {initializeApp,applicationDefault}=require('firebase-admin/app');
  const {google}=require('googleapis');
- const projectId='mungtheland-guardian-test';
  const uid=process.env.MD_TEST_GUARDIAN_UID;
  const email=process.env.MD_TEST_GUARDIAN_EMAIL;
  if(!uid||!email||!/^\S+@\S+\.\S+$/.test(email))throw Error('Explicit test UID and email are required');
- if(process.env.GOOGLE_CLOUD_PROJECT!==projectId)throw Error('Wrong Google Cloud project');
  const app=initializeApp({credential:applicationDefault(),projectId});
  const firebaseAuth=getAuth(app);
- const arrivalWriteEnabled=process.env.MD_TEST_ARRIVAL_WRITE==='enabled';
- const attendancePersistEnabled=process.env.MD_TEST_ATTENDANCE_PERSIST==='enabled';
  const googleAuth=new google.auth.GoogleAuth({scopes:[arrivalWriteEnabled||attendancePersistEnabled?'https://www.googleapis.com/auth/spreadsheets':'https://www.googleapis.com/auth/spreadsheets.readonly']});
  const sheets=google.sheets({version:'v4',auth:googleAuth});
  // Optional second, independently authenticated test guardian for real cross-customer denial.
@@ -76,13 +102,16 @@ async function main(){
  }};
  const authenticateStaff=createStaffAuthenticator({firebaseAuth,accountStore:staffStore,projectId,onDiagnostic:code=>process.stderr.write('[staff-test] AUTH_'+code+'\n')});
  const staffArrival=createStaffArrivalService({sheets,bookingRepository});
- const firestoreEnabled=process.env.MD_TEST_ATTENDANCE_FIRESTORE==='enabled';
- if(firestoreEnabled&&attendancePersistEnabled)throw Error('Select only one attendance persistence mode');
- const {getFirestore}=require('firebase-admin/firestore');
- const attendanceStore=firestoreEnabled?createFirestoreAttendanceStore({db:getFirestore(app),projectId}):attendancePersistEnabled?createIsolatedAttendanceStore({sheets,spreadsheetId:TEST_SPREADSHEET_ID}):null;
+ let attendanceStore=null;
+ if(firestoreEnabled){
+  const {getFirestore}=require('firebase-admin/firestore');
+  const db=getFirestore(app,attendanceDatabase);
+  assertCloudAttendanceClient(db);
+  attendanceStore=createFirestoreAttendanceStore({db,projectId});
+ }else if(attendancePersistEnabled)attendanceStore=createIsolatedAttendanceStore({sheets,spreadsheetId:TEST_SPREADSHEET_ID});
  const staffAttendance=createStaffAttendanceService({bookingRepository,store:attendanceStore});
  process.stdout.write('[staff-test] Attendance mode: '+(firestoreEnabled?'isolated Firestore transactions':attendancePersistEnabled?'isolated Sheets event log':'process-local simulation')+'\n');
- const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,staffAttendance,bookingRepository,writeEnabled:arrivalWriteEnabled});
+ const handleStaffArrival=createStaffArrivalHttpHandler({authenticateStaff,staffArrival,staffAttendance,bookingRepository,writeEnabled:arrivalWriteEnabled,attendanceWriteBookingId});
  const handle=createGuardianBookingHttpHandler({authenticateGuardian,bookingRepository});
  const arrival=createArrivalRequestService({sheets,bookingRepository});
  async function handleArrival(req,res){
@@ -141,4 +170,4 @@ async function main(){
  }).listen(port,'127.0.0.1',()=>{process.stdout.write('Isolated guardian API listening on 127.0.0.1:'+port+'\n');});
 }
 if(require.main===module)main().catch(err=>{process.stderr.write('Local API startup failed: '+err.message+'\n');process.exitCode=1;});
-module.exports={main};
+module.exports={main,readTestServerSettings,assertCloudAttendanceClient};

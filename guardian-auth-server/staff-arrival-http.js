@@ -1,6 +1,6 @@
 'use strict';
 const {reconcileBookingStatus}=require('./booking-status-reconciliation');
-function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRepository,staffAttendance,writeEnabled=false}){
+function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRepository,staffAttendance,writeEnabled=false,attendanceWriteBookingId}){
  return async(req,res)=>{
   const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
   const path=new URL(req.url,'http://localhost').pathname;
@@ -18,6 +18,9 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
   catch(_){send(403,{error:'Access denied'});return true;}
   if(!principal||principal.role!=='staff'||principal.status!=='active'){send(403,{error:'Access denied'});return true;}
   if(ack&&!writeEnabled){send(503,{error:'Test write not enabled'});return true;}
+  if(transition&&attendanceWriteBookingId!==undefined&&attendance[1]!==attendanceWriteBookingId){
+   send(403,{error:'Attendance write is restricted to the selected test booking',code:'ATTENDANCE_WRITE_FAILED'});return true;
+  }
   try{
    if(attendance){if(!staffAttendance)throw Error('Attendance unavailable');if(transition){send(200,{attendance:await staffAttendance.transition(principal,attendance[1],attendance[2],req.headers['x-attendance-request-id'])});}else{send(200,{attendance:await staffAttendance.get(principal,attendance[1])});}return true;}
    if(listing){
