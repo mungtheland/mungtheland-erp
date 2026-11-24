@@ -14,7 +14,7 @@ async function run(db){
  if(!p.exists||p.data().total!==8||p.data().remaining!==8||p.data().customerId!==CUSTOMER)throw Error('ABORT: expected fresh 8-visit test pass not found');
  const store=createFirestoreAttendanceStore({db,projectId:PROJECT});
  const ledger=createIsolatedPassLedger({db,projectId:PROJECT});
- await store.commitTransition({expectedState:'예약',event:{eventId:'EVT-TEST-PARITY-002-IN',bookingId:BOOKING,action:'check-in',staffId:'STAFF-TEST-001',occurredAt:new Date().toISOString()}});
+ await store.commitTransition({expectedState:'예약',event:{eventId:'EVT-TEST-PARITY-002-IN',bookingId:BOOKING,action:'check-in',staffId:'STAFF-TEST-001',at:new Date().toISOString()}});
  const first=await ledger.consume({bookingId:BOOKING,passId:PASS,customerId:CUSTOMER});
  const second=await ledger.consume({bookingId:BOOKING,passId:PASS,customerId:CUSTOMER});
  const [afterPass,afterConsumption,afterAttendance]=await Promise.all([passRef.get(),consumptionRef.get(),attendanceRef.get()]);

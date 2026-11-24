@@ -1,6 +1,7 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
 const {withBookingLock}=require('./booking-lock');
+const {validateAttendanceHistory}=require('./attendance-history');
 function createStaffAttendanceService({bookingRepository,store=null,clock=()=>new Date()}){
  const records=new Map();
  function authorize(principal){
@@ -8,18 +9,9 @@ function createStaffAttendanceService({bookingRepository,store=null,clock=()=>ne
  }
  async function state(bookingId){
   const events=store?await store.read(bookingId):records.get(bookingId)||[];
-  let result={bookingId,state:'예약',checkIn:null,checkOut:null,temporary:!store};
-  const seenIds=new Set();
-  let previousAt=-Infinity;
-  for(const event of events){
-   const at=Date.parse(event.at);
-   if(seenIds.has(event.eventId)||!Number.isFinite(at)||at<previousAt)throw Object.assign(new Error('Invalid attendance history'),{code:'INVALID_ATTENDANCE_HISTORY'});
-   seenIds.add(event.eventId);previousAt=at;
-   if(event.action==='check-in'&&result.state==='예약'){result={...result,state:'등원 중',checkIn:{staffId:event.staffId,at:event.at}};}
-   else if(event.action==='check-out'&&result.state==='등원 중'){result={...result,state:'하원 완료',checkOut:{staffId:event.staffId,at:event.at}};}
-   else throw Object.assign(new Error('Invalid attendance history'),{code:'INVALID_ATTENDANCE_HISTORY'});
-  }
-  return result;
+  const state=validateAttendanceHistory(bookingId,events);
+  const details=event=>event?{staffId:event.staffId,at:event.at}:null;
+  return {bookingId,state,checkIn:details(events[0]),checkOut:details(events[1]),temporary:!store};
  }
  async function get(principal,bookingId){
   authorize(principal);
