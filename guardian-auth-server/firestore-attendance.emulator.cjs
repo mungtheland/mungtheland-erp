@@ -134,9 +134,9 @@ function postAttendance(handler,id,requestId,discardResponse=false){
  }).then(()=>({status:responseStatus,body}));
 }
 
-if(process.argv[2]==='worker'){
+if(require.main===module&&process.argv[2]==='worker'){
  runWorker().catch(()=>{process.exitCode=1;}).finally(()=>process.disconnect());
-}else{
+}else if(require.main===module){
  test('isolated Firestore Admin SDK attendance integration',{timeout:120000},async t=>{
   const java=process.env.ERP_FIRESTORE_JAVA, jar=process.env.ERP_FIRESTORE_EMULATOR_JAR;
   assert.ok(java&&jar,'Provide paths to local Java and the verified Firestore emulator JAR');
@@ -356,3 +356,5 @@ if(process.argv[2]==='worker'){
   });
  });
 }
+
+module.exports={startEmulator,guardNetwork,emulatorClient,childEnvironment};

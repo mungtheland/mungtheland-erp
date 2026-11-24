@@ -32,8 +32,8 @@ const modules={
  `
 };
 
-async function until(read, description){
- for(let attempt=0;attempt<100;attempt++){
+async function until(read, description, attempts=100){
+ for(let attempt=0;attempt<attempts;attempt++){
   const value=await read();
   if(value)return value;
   await delay(50);
@@ -71,18 +71,96 @@ async function connect(url){
  return cdp;
 }
 
-test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000},async t=>{
+async function openStaffBrowser(t,origin,routeErrors=[],failRequest=()=>false){
+ const pageErrors=[];
  const executable=process.env.CHROMIUM_PATH||[
   join(process.env.ProgramFiles||'C:/Program Files','Google/Chrome/Application/chrome.exe'),
   join(process.env['ProgramFiles(x86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe'),
   '/usr/bin/chromium','/usr/bin/google-chrome'
  ].find(existsSync);
  assert.ok(executable,'Test setup: install Chromium locally or set CHROMIUM_PATH');
+ const profile=await mkdtemp(join(tmpdir(),'erp-attendance-chromium-'));
+ const browser=spawn(executable,[
+  '--headless=new','--user-data-dir='+profile,'--remote-debugging-port=0',
+  '--no-first-run','--disable-background-networking','--disable-component-update',
+  '--disable-default-apps','--disable-sync','--disable-quic','--no-pings',
+  '--proxy-server=http://127.0.0.1:9','--proxy-bypass-list=127.0.0.1',
+  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1','about:blank'
+ ],{windowsHide:true,stdio:'ignore'});
+ let spawnError;
+ browser.once('error',error=>{spawnError=error;});
+ const closed=new Promise(resolve=>browser.once('close',resolve));
+ t.after(async()=>{
+  browser.kill();await closed;
+  await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});
+ });
+ const debugPort=await until(async()=>{
+  if(spawnError)throw Error('Test setup: Chromium launch failed',{cause:spawnError});
+  if(browser.exitCode!==null)throw Error('Test setup: Chromium exited with '+browser.exitCode);
+  try{return Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);}
+  catch(error){if(error.code!=='ENOENT')throw error;}
+ },'Chromium debug port');
+ const targets=await (await fetch('http://127.0.0.1:'+debugPort+'/json/list')).json();
+ const target=targets.find(candidate=>candidate.type==='page');
+ assert.ok(target,'Test setup: missing Chromium page');
+ assert.equal(new URL(target.webSocketDebuggerUrl).origin,'ws://127.0.0.1:'+debugPort);
+ const cdp=await connect(target.webSocketDebuggerUrl);
+ t.after(()=>cdp.socket.close());
+ cdp.onEvent=({method,params})=>{
+  if(method==='Runtime.exceptionThrown')pageErrors.push(params.exceptionDetails.exception?.description||params.exceptionDetails.text);
+  if(method!=='Fetch.requestPaused')return;
+  const {requestId,request}=params;
+  const respond=async()=>{
+   if(Object.hasOwn(modules,request.url)&&request.method==='GET'){
+    await cdp.send('Fetch.fulfillRequest',{requestId,responseCode:200,responseHeaders:[
+     {name:'Content-Type',value:'text/javascript'},{name:'Access-Control-Allow-Origin',value:origin}
+    ],body:Buffer.from(modules[request.url]).toString('base64')});
+   }else if(new URL(request.url).origin===origin&&failRequest(request)){
+    await cdp.send('Fetch.failRequest',{requestId,errorReason:'ConnectionReset'});
+   }else if(new URL(request.url).origin===origin){
+    await cdp.send('Fetch.continueRequest',{requestId});
+   }else{
+    routeErrors.push('Blocked unexpected external request: '+request.url);
+    await cdp.send('Fetch.failRequest',{requestId,errorReason:'BlockedByClient'});
+   }
+  };
+  void respond().catch(error=>routeErrors.push('Interception error: '+error.message));
+ };
+ await cdp.send('Runtime.enable');
+ await cdp.send('Fetch.enable',{patterns:[{urlPattern:'*'}]});
+ await cdp.send('Page.navigate',{url:origin+'/staff-local-test'});
+ const evaluate=async expression=>{
+  const outcome=await cdp.send('Runtime.evaluate',{expression,returnByValue:true});
+  if(outcome.exceptionDetails)throw Error('Browser evaluation: '+outcome.exceptionDetails.exception?.description);
+  return outcome.result.value;
+ };
+ const check=(expression,description,attempts)=>until(async()=>{
+  if(routeErrors.length)throw Error('Test fixture: '+routeErrors.join('; '));
+  if(pageErrors.length)throw Error('Page exception: '+pageErrors.join('; '));
+  return evaluate(expression);
+ },description,attempts);
+ const input=(selector,value,event)=>evaluate(`(()=>{
+  const input=document.querySelector(${JSON.stringify(selector)});
+  input.value=${JSON.stringify(value)};input.dispatchEvent(new Event(${JSON.stringify(event)},{bubbles:true}));
+ })()`);
+ const click=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+ const card=id=>`[...document.querySelectorAll('.booking-card')].find(card=>card.children[1].textContent.endsWith(${JSON.stringify(id)}))`;
+ const count=number=>`document.querySelectorAll('.booking-card').length===${number}`;
+ const summary=(total,reserved,inProgress,done,review)=>`JSON.stringify([...document.querySelectorAll('#booking-summary > div')].map(cell=>[cell.firstElementChild.textContent,Number(cell.lastElementChild.textContent)]))===${JSON.stringify(JSON.stringify([['전체 예약',total],['미등원',reserved],['등원 중',inProgress],['하원 완료',done],['출석 확인 필요',review],['직원 확인 대기',0]]))}`;
+ const visible=id=>`([${card(id)}].some(card=>card&&!card.hidden))`;
+ const detail=(id,expected)=>`(${card(id)})?.querySelector('.attendance-detail')?.textContent.includes(${JSON.stringify(expected)})`;
+ const notice=(id,expected)=>`(${card(id)})?.querySelector('.attendance-action')?.textContent.includes(${JSON.stringify(expected)})`;
+ const buttons=(id,inDisabled,outDisabled)=>`JSON.stringify([...( ${card(id)} )?.querySelectorAll('button')||[]].slice(1).map(button=>button.disabled))===${JSON.stringify(JSON.stringify([inDisabled,outDisabled]))}`;
+
+ return {evaluate,check,input,click,card,count,summary,visible,detail,notice,buttons,pageErrors};
+}
+
+if(require.main===module)test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000},async t=>{
  const html=await readFile(join(__dirname,'staff-local-test.html'));
  let recover=false, normalState='예약', blockNextRead=false;
  const checkInRequests=[];
  let checkOutRequest;
- const routeErrors=[],pageErrors=[],requests=[];
+ const routeErrors=[],requests=[];
  const server=http.createServer((req,res)=>{
   const send=(status,data)=>{
    res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});
@@ -145,77 +223,9 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
  });
  t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
  const origin='http://127.0.0.1:'+server.address().port;
- const profile=await mkdtemp(join(tmpdir(),'erp-attendance-chromium-'));
- const browser=spawn(executable,[
-  '--headless=new','--user-data-dir='+profile,'--remote-debugging-port=0',
-  '--no-first-run','--disable-background-networking','--disable-component-update',
-  '--disable-default-apps','--disable-sync','--disable-quic','--no-pings',
-  '--proxy-server=http://127.0.0.1:9','--proxy-bypass-list=127.0.0.1',
-  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1','about:blank'
- ],{windowsHide:true,stdio:'ignore'});
- let spawnError;
- browser.once('error',error=>{spawnError=error;});
- const closed=new Promise(resolve=>browser.once('close',resolve));
- t.after(async()=>{
-  browser.kill();await closed;
-  await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});
- });
- const debugPort=await until(async()=>{
-  if(spawnError)throw Error('Test setup: Chromium launch failed',{cause:spawnError});
-  if(browser.exitCode!==null)throw Error('Test setup: Chromium exited with '+browser.exitCode);
-  try{return Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);}
-  catch(error){if(error.code!=='ENOENT')throw error;}
- },'Chromium debug port');
- const targets=await (await fetch('http://127.0.0.1:'+debugPort+'/json/list')).json();
- const target=targets.find(candidate=>candidate.type==='page');
- assert.ok(target,'Test setup: missing Chromium page');
- const cdp=await connect(target.webSocketDebuggerUrl);
- t.after(()=>cdp.socket.close());
- cdp.onEvent=({method,params})=>{
-  if(method==='Runtime.exceptionThrown')pageErrors.push(params.exceptionDetails.exception?.description||params.exceptionDetails.text);
-  if(method!=='Fetch.requestPaused')return;
-  const {requestId,request}=params;
-  const respond=async()=>{
-   if(Object.hasOwn(modules,request.url)&&request.method==='GET'){
-    await cdp.send('Fetch.fulfillRequest',{requestId,responseCode:200,responseHeaders:[
-     {name:'Content-Type',value:'text/javascript'},{name:'Access-Control-Allow-Origin',value:origin}
-    ],body:Buffer.from(modules[request.url]).toString('base64')});
-   }else if(request.url===origin+'/api/staff/bookings/RSV-NETWORK/attendance'){
-    await cdp.send('Fetch.failRequest',{requestId,errorReason:'ConnectionReset'});
-   }else if(new URL(request.url).origin===origin){
-    await cdp.send('Fetch.continueRequest',{requestId});
-   }else{
-    routeErrors.push('Blocked unexpected external request: '+request.url);
-    await cdp.send('Fetch.failRequest',{requestId,errorReason:'BlockedByClient'});
-   }
-  };
-  void respond().catch(error=>routeErrors.push('Interception error: '+error.message));
- };
- await cdp.send('Runtime.enable');
- await cdp.send('Fetch.enable',{patterns:[{urlPattern:'*'}]});
- await cdp.send('Page.navigate',{url:origin+'/staff-local-test'});
- const evaluate=async expression=>{
-  const outcome=await cdp.send('Runtime.evaluate',{expression,returnByValue:true});
-  if(outcome.exceptionDetails)throw Error('Browser evaluation: '+outcome.exceptionDetails.exception?.description);
-  return outcome.result.value;
- };
- const check=(expression,description)=>until(async()=>{
-  if(routeErrors.length)throw Error('Test fixture: '+routeErrors.join('; '));
-  if(pageErrors.length)throw Error('Page exception: '+pageErrors.join('; '));
-  return evaluate(expression);
- },description);
- const input=(selector,value,event)=>evaluate(`(()=>{
-  const input=document.querySelector(${JSON.stringify(selector)});
-  input.value=${JSON.stringify(value)};input.dispatchEvent(new Event(${JSON.stringify(event)},{bubbles:true}));
- })()`);
- const click=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
- const card=id=>`[...document.querySelectorAll('.booking-card')].find(card=>card.children[1].textContent.endsWith(${JSON.stringify(id)}))`;
- const count=number=>`document.querySelectorAll('.booking-card').length===${number}`;
- const summary=(total,reserved,inProgress,done,review)=>`JSON.stringify([...document.querySelectorAll('#booking-summary > div')].map(cell=>[cell.firstElementChild.textContent,Number(cell.lastElementChild.textContent)]))===${JSON.stringify(JSON.stringify([['전체 예약',total],['미등원',reserved],['등원 중',inProgress],['하원 완료',done],['출석 확인 필요',review],['직원 확인 대기',0]]))}`;
- const visible=id=>`([${card(id)}].some(card=>card&&!card.hidden))`;
- const detail=(id,expected)=>`(${card(id)})?.querySelector('.attendance-detail')?.textContent.includes(${JSON.stringify(expected)})`;
- const notice=(id,expected)=>`(${card(id)})?.querySelector('.attendance-action')?.textContent.includes(${JSON.stringify(expected)})`;
- const buttons=(id,inDisabled,outDisabled)=>`JSON.stringify([...( ${card(id)} )?.querySelectorAll('button')||[]].slice(1).map(button=>button.disabled))===${JSON.stringify(JSON.stringify([inDisabled,outDisabled]))}`;
+ const {evaluate,check,input,click,card,count,summary,visible,detail,notice,buttons,pageErrors}=await openStaffBrowser(
+  t,origin,routeErrors,request=>request.url===origin+'/api/staff/bookings/RSV-NETWORK/attendance'
+ );
 
  await t.test('fixture login and isolated HTTP / network errors',async()=>{
   await check("typeof document.querySelector('#login')?.onsubmit==='function'",'staff module loaded');
@@ -263,3 +273,5 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
  assert.deepEqual(routeErrors,[],'test fixture routing');
  assert.deepEqual(pageErrors,[],'uncaught product JavaScript errors');
 });
+
+module.exports={openStaffBrowser};
