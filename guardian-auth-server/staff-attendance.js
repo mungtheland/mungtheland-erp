@@ -13,11 +13,11 @@ function createStaffAttendanceService({bookingRepository,store=null,clock=()=>ne
   let previousAt=-Infinity;
   for(const event of events){
    const at=Date.parse(event.at);
-   if(seenIds.has(event.eventId)||!Number.isFinite(at)||at<previousAt)throw Error('Invalid attendance history');
+   if(seenIds.has(event.eventId)||!Number.isFinite(at)||at<previousAt)throw Object.assign(new Error('Invalid attendance history'),{code:'INVALID_ATTENDANCE_HISTORY'});
    seenIds.add(event.eventId);previousAt=at;
    if(event.action==='check-in'&&result.state==='예약'){result={...result,state:'등원 중',checkIn:{staffId:event.staffId,at:event.at}};}
    else if(event.action==='check-out'&&result.state==='등원 중'){result={...result,state:'하원 완료',checkOut:{staffId:event.staffId,at:event.at}};}
-   else throw Error('Invalid attendance history');
+   else throw Object.assign(new Error('Invalid attendance history'),{code:'INVALID_ATTENDANCE_HISTORY'});
   }
   return result;
  }

@@ -20,7 +20,24 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
   if(ack&&!writeEnabled){send(503,{error:'Test write not enabled'});return true;}
   try{
    if(attendance){if(!staffAttendance)throw Error('Attendance unavailable');if(transition){send(200,{attendance:await staffAttendance.transition(principal,attendance[1],attendance[2])});}else{send(200,{attendance:await staffAttendance.get(principal,attendance[1])});}return true;}
-   if(listing){if(!bookingRepository||typeof bookingRepository.listForStaff!=='function')throw Error('Listing unavailable');const bookings=await bookingRepository.listForStaff();const combined=staffAttendance?await Promise.all(bookings.map(async booking=>({bookingId:booking.bookingId,...reconcileBookingStatus(booking.status,(await staffAttendance.get(principal,booking.bookingId)).state)}))):null;send(200,{bookings,...(combined?{combined}:{})});return true;}
+   if(listing){
+    if(!bookingRepository||typeof bookingRepository.listForStaff!=='function')throw Error('Listing unavailable');
+    const bookings=await bookingRepository.listForStaff();
+    const combined=staffAttendance?await Promise.all(bookings.map(async booking=>{
+     try{
+      const {state}=await staffAttendance.get(principal,booking.bookingId);
+      return {bookingId:booking.bookingId,...reconcileBookingStatus(booking.status,state)};
+     }catch(err){
+      const invalidRecord=['INVALID_ATTENDANCE_HISTORY','INVALID_ATTENDANCE_DOCUMENT'].includes(err.code)
+       ||(err.code==null&&['Invalid attendance history','Invalid attendance document'].includes(err.message));
+      if(!invalidRecord)throw err;
+      process.stderr.write('[staff-test] ATTENDANCE_RECORD_REVIEW bookingId='+booking.bookingId+'\n');
+      return {bookingId:booking.bookingId,sourceStatus:booking.status,attendanceState:null,displayStatus:'출석 기록 확인 필요',mismatch:true,reason:'INVALID_ATTENDANCE_HISTORY',needsReview:true,attendanceError:true};
+     }
+    })):null;
+    send(200,{bookings,...(combined?{combined}:{})});
+    return true;
+   }
    if(!ack){send(200,{request:await staffArrival.get(principal,match[1])});return true;}
    let raw='';
    for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw Error('Payload too large');}

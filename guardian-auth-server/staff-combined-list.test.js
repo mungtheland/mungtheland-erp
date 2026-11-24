@@ -22,7 +22,7 @@ test('staff listing includes independent read-only booking and attendance states
  const response=await request(handler);
  assert.equal(response.status,200);
  assert.deepEqual(response.body.bookings,bookings);
- assert.deepEqual(response.body.combined,[{bookingId:'RSV-TEST-001',sourceStatus:'예약',attendanceState:'하원 완료'}]);
+ assert.deepEqual(response.body.combined,[{bookingId:'RSV-TEST-001',sourceStatus:'예약',attendanceState:'하원 완료',displayStatus:'하원 완료',mismatch:true,reason:'SOURCE_ATTENDANCE_DIFFER',needsReview:true}]);
  assert.equal(reads,1);assert.equal(writes,0);
 });
 test('listing fails closed if attendance read fails; never reports an invented state',async()=>{
