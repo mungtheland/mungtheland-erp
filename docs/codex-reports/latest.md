@@ -1,32 +1,46 @@
 # Codex work report
 
-- Step: reporting-setup
-- Work time (KST): 2026-11-24T13:26:35.202+09:00
+- Step: 33
+- Work time (KST): 2026-11-24T13:54:43.881+09:00
 - Branch: feature/staff-attendance-desktop
-- Implementation commit: 04e1e60ac044d87576cd97499812fdeb04827d7d
+- Implementation commit: 4c1da383d34aae52ac179c8fee0e5bfcc2d21cc0
 - Implementation push: pushed
-- History: history/20261124T132635202-reporting-setup-04e1e60ac044.md
+- History: history/20261124T135443881-33-4c1da383d34a.md
 
 ## Changed files
 
-- AGENTS.md
-- docs/codex-reports/README.md
-- scripts/New-CodexReport.ps1
-- scripts/Test-CodexReport.ps1
+- guardian-auth-server/attendance-history.js
+- guardian-auth-server/firestore-attendance-store.js
+- guardian-auth-server/firestore-attendance-store.test.js
+- guardian-auth-server/isolated-attendance-store.test.js
+- guardian-auth-server/staff-arrival-http.js
+- guardian-auth-server/staff-attendance-ui.test.js
+- guardian-auth-server/staff-attendance.browser.cjs
+- guardian-auth-server/staff-attendance.js
+- guardian-auth-server/staff-local-test.html
+- guardian-auth-server/transactional-attendance.test.js
 
 ## Tests
 
 | Command | Status | Passed | Failed | Not run |
 | --- | --- | ---: | ---: | ---: |
-| powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Test-CodexReport.ps1 | executed | 24 | 0 | 0 |
-| 직원 출석 기능 회귀 테스트 묶음 | not run | 0 | 0 | 1 |
+| node --test $files | executed | 156 | 0 | 0 |
+| node --test guardian-auth-server/staff-attendance.browser.cjs | executed | 4 | 0 | 0 |
+| node --check $p | executed | 9 | 0 | 0 |
+| node --check (HTML module via stdin) | executed | 1 | 0 | 0 |
+| git diff --check | executed | 1 | 0 | 0 |
+| 실제 Firestore 다중 프로세스 경합 | not run | 0 | 0 | 1 |
+| 실제 Firestore 커밋 응답 유실 | not run | 0 | 0 | 1 |
 
-- Totals: passed 24, failed 0, not run 1
+- Totals: passed 171, failed 0, not run 2
 
 ## Change summary
 
-- PowerShell 작업 보고서 생성·검증 도구와 저장소 종료 절차를 추가했습니다.
-- 구현 커밋과 보고서 커밋을 분리하고, 기존 출석 코드는 변경하지 않았습니다.
+- 33단계의 당시 구현 및 테스트를 소급 기록했습니다. KST 시각은 등록 시각입니다.
+- 트랜잭션이 확인한 이력으로 API 응답을 생성합니다. 응답 유실과 타임아웃 시 상태를 다시 읽어 카드와 통계를 갱신합니다.
+- 같은 예약·직원·동작과 요청 ID의 재전송은 이벤트를 추가하지 않습니다. 기존 문서 형식과 헤더 없는 호출을 지원합니다.
+- 로컬 테스트는 직원 서버 단위 테스트 전체와 ERP 출석 통합 테스트를 실행했습니다. Chromium 상위 묶음은 시나리오 수에서 제외했습니다.
+- 초기 모의 실행의 Sheets 예외 기대값과 Chromium 연결 종료 픽스처 문제는 수정 후 모두 통과했습니다.
 
 ## Failure causes
 
@@ -34,9 +48,9 @@
 
 ## Remaining risks
 
-- 패턴 검사가 인식할 수 없는 민감정보는 보고서를 작성할 때 직접 제거해야 합니다.
-- 보고서 갱신은 세션에서 종료 절차를 실행해야 반영됩니다.
+- 실제 Firestore 경합과 응답 유실은 확인이 필요합니다.
+- 미확정 요청 ID는 페이지 메모리에만 남습니다. Sheets 저장 모드는 프로세스 간 원자성을 보장하지 않습니다.
 
 ## Recommended next work
 
-- 다음 개발·테스트 작업을 마치면 실제 결과로 최신 보고서와 단계별 이력을 갱신합니다.
+- 별도 승인된 격리 환경에서 동시 요청과 커밋 응답 유실 및 재시작 복원을 검증합니다.
