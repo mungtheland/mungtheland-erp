@@ -1,8 +1,22 @@
 'use strict';
 const {validateAttendanceHistory,isAttendanceReplay}=require('./attendance-history');
 const PROJECT='mungtheland-guardian-test';
+const EMULATOR_PROJECT='demo-mungtheland-attendance';
+const LOOPBACK='127.0.0.1', EMULATOR_PORT=18879;
+const EMULATOR_HOST=LOOPBACK+':'+EMULATOR_PORT;
 function createFirestoreAttendanceStore({db,projectId}){
  if(projectId!==PROJECT||db?.projectId!==PROJECT)throw Error('Test Firestore project only');
+ return attendanceStore(db);
+}
+function createEmulatorAttendanceStore(db){
+ // Fail closed if the installed SDK changes how it specifies the resolved endpoint.
+ const settings=db?._settings;
+ if(process.env.FIRESTORE_EMULATOR_HOST!==EMULATOR_HOST||db?.projectId!==EMULATOR_PROJECT||
+  settings?.servicePath!==LOOPBACK||settings.port!==EMULATOR_PORT||settings.ssl!==false)
+  throw Error('Isolated attendance emulator only');
+ return attendanceStore(db);
+}
+function attendanceStore(db){
  const collection=db.collection('attendance_test_v1');
  const doc=id=>{if(!/^RSV-[A-Z0-9-]{1,64}$/.test(id))throw Error('Invalid booking ID');return collection.doc(id);};
  const parse=(snap,id)=>{
@@ -39,4 +53,4 @@ function createFirestoreAttendanceStore({db,projectId}){
  }
  return {read,commitTransition};
 }
-module.exports={createFirestoreAttendanceStore};
+module.exports={createFirestoreAttendanceStore,createEmulatorAttendanceStore,EMULATOR_PROJECT,EMULATOR_HOST};
