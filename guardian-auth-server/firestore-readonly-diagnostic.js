@@ -129,18 +129,22 @@ async function diagnose({env,adc,getToken,fetchRequest=fetch}){
  return checks;
 }
 
+function readDefaultAdc(env){
+ return JSON.parse(readFileSync(join(env.APPDATA,'gcloud','application_default_credentials.json'),'utf8'));
+}
+
+async function getTestAccessToken(credentials){
+ const {google}=require('googleapis');
+ const auth=new google.auth.GoogleAuth({
+  projectId:PROJECT,credentials,scopes:['https://www.googleapis.com/auth/cloud-platform']
+ });
+ return auth.getAccessToken();
+}
+
 async function main(){
  if(process.argv.length!==2)throw Error('This probe has no target or write options');
  const env=process.env;
- const adc=JSON.parse(readFileSync(join(env.APPDATA,'gcloud','application_default_credentials.json'),'utf8'));
- const getToken=async credentials=>{
-  const {google}=require('googleapis');
-  const auth=new google.auth.GoogleAuth({
-   projectId:PROJECT,credentials,scopes:['https://www.googleapis.com/auth/cloud-platform']
-  });
-  return auth.getAccessToken();
- };
- const checks=await diagnose({env,adc,getToken});
+ const checks=await diagnose({env,adc:readDefaultAdc(env),getToken:getTestAccessToken});
  process.stdout.write(JSON.stringify(checks,null,2)+'\n');
  if(Object.values(checks).some(check=>check.status==='failed'))process.exitCode=1;
 }
@@ -149,4 +153,4 @@ if(require.main===module)main().catch(()=>{
  process.stderr.write('Read-only diagnostic stopped because its local prerequisites were not met.\n');
  process.exitCode=1;
 });
-module.exports={diagnose};
+module.exports={diagnose,checkLocalConfiguration,readDefaultAdc,getTestAccessToken,PROJECT};

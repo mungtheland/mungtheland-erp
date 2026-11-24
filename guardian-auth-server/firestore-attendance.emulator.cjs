@@ -12,6 +12,7 @@ const test=require('node:test');
 const {createFirestoreAttendanceStore,createEmulatorAttendanceStore,EMULATOR_PROJECT,EMULATOR_HOST}=require('./firestore-attendance-store');
 const {createStaffAttendanceService}=require('./staff-attendance');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
+const {runEmulatorProbe}=require('./firestore-attendance-write-probe');
 
 const [host,portText]=EMULATOR_HOST.split(':');
 const port=Number(portText);
@@ -249,6 +250,45 @@ if(process.argv[2]==='worker'){
    const original=await client.store.read(id);
    await assert.rejects(makeService(client.store,'2026-11-24T02:59:59Z').transition(staff[1],id,'check-out'),{code:'ATTENDANCE_CLOCK_ROLLBACK'});
    assert.deepEqual(await client.store.read(id),original);
+  });
+  await t.test('isolated REST probe creates, verifies and conditionally deletes one document',async()=>{
+   let addedId;
+   const result=await runEmulatorProbe({env:process.env,fetchRequest:async(raw,options)=>{
+    const response=await fetch(raw,options);
+    if(options.method==='POST'&&new URL(raw).searchParams.has('documentId')&&response.ok){
+     addedId=new URL(raw).searchParams.get('documentId');
+     const history=await client.store.read(addedId);
+     assert.equal(history.length,1);
+     assert.equal(history[0].action,'check-in');
+    }
+    return response;
+   }});
+   assert.match(addedId,/^RSV-PROBE-[A-F0-9]{32}$/);
+   assert.deepEqual(result,{status:'passed',documentId:addedId,cleanup:'confirmed'});
+   assert.equal((await client.db.collection('attendance_test_v1').doc(addedId).get()).exists,false);
+  });
+  await t.test('probe refuses an existing fixture without changing it',async()=>{
+   const runId=randomUUID();
+   const id='RSV-PROBE-'+runId.replaceAll('-','').toUpperCase();
+   const reference=client.db.collection('attendance_test_v1').doc(id);
+   const original={fixture:'already here'};
+   await reference.create(original);
+   const result=await runEmulatorProbe({env:process.env,runId});
+   assert.deepEqual(result,{status:'failed',phase:'absence',http:200});
+   assert.deepEqual((await reference.get()).data(),original);
+  });
+  await t.test('Firestore refuses cleanup if the probe document changes before DELETE',async()=>{
+   const runId=randomUUID();
+   const id='RSV-PROBE-'+runId.replaceAll('-','').toUpperCase();
+   const reference=client.db.collection('attendance_test_v1').doc(id);
+   const result=await runEmulatorProbe({env:process.env,runId,fetchRequest:async(raw,options)=>{
+    if(new URL(raw).pathname.endsWith(':commit'))await reference.update({fixture:'changed before delete'});
+    return fetch(raw,options);
+   }});
+   assert.equal(result.phase,'delete');
+   assert.equal(result.cleanup,'unconfirmed');
+   assert.ok(result.createdUpdateTime);
+   assert.equal((await reference.get()).data().fixture,'changed before delete');
   });
   await t.test('plain emulator restart resets data; importing a snapshot restores it',async()=>{
    const original=await client.store.read(persistedId);
