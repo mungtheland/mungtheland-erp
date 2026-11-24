@@ -1,46 +1,42 @@
 # Codex work report
 
-- Step: 41
-- Work time (KST): 2026-11-24T14:59:44.355+09:00
+- Step: 42
+- Work time (KST): 2026-11-24T15:08:19.174+09:00
 - Branch: feature/staff-attendance-desktop
-- Implementation commit: 496ae4b0ac8451116d60318cedd3a6da7a619b7b
+- Implementation commit: 693c8c3cf5fac9d849a39047f1991799ecd3fa5b
 - Implementation push: pushed
-- History: history/20261124T145944355-41-496ae4b0ac84.md
+- History: history/20261124T150819174-42-693c8c3cf5fa.md
 
 ## Changed files
 
-- guardian-auth-server/firestore-attendance-activation.md
-- guardian-auth-server/firestore-attendance-probe-target.js
-- guardian-auth-server/firestore-attendance-residue-check.js
-- guardian-auth-server/firestore-attendance-residue-check.test.js
-- guardian-auth-server/firestore-attendance-write-probe.js
-- guardian-auth-server/firestore-attendance-write-probe.test.js
+- guardian-auth-server/firestore-attendance-emulator.md
 - guardian-auth-server/firestore-attendance.emulator.cjs
+- guardian-auth-server/staff-attendance.browser.cjs
+- guardian-auth-server/staff-attendance.e2e.cjs
 
 ## Tests
 
 | Command | Status | Passed | Failed | Not run |
 | --- | --- | ---: | ---: | ---: |
-| node guardian-auth-server/firestore-attendance-write-probe.js | executed | 1 | 0 | 0 |
-| node guardian-auth-server/firestore-attendance-residue-check.js | executed | 1 | 0 | 0 |
-| node on stdin for target and read-only permission preflight | executed | 1 | 0 | 0 |
-| node guardian-auth-server/firestore-attendance-write-probe.js --execute-approved-test-write mungtheland-guardian-test | executed | 1 | 0 | 0 |
-| PowerShell local probe evidence consistency check | executed | 1 | 0 | 0 |
-| node --test $files | executed | 179 | 0 | 0 |
+| node --test guardian-auth-server/staff-attendance.e2e.cjs | executed | 6 | 0 | 0 |
+| node --test guardian-auth-server/firestore-attendance.emulator.cjs | executed | 15 | 0 | 0 |
 | node --test guardian-auth-server/staff-attendance.browser.cjs | executed | 4 | 0 | 0 |
-| 격리 Firestore 에뮬레이터 전체 묶음 재실행 | not run | 0 | 0 | 1 |
-| 독립 잔여 확인 명령의 실제 Firestore 조회 | not run | 0 | 0 | 1 |
+| node --test $files | executed | 179 | 0 | 0 |
+| node --check $p | executed | 3 | 0 | 0 |
+| git diff --cached --check | executed | 1 | 0 | 0 |
+| 실제 테스트 Firebase 직원 인증과 예약 원장 조회 | not run | 0 | 0 | 1 |
+| 실제 테스트 Firestore 직원 출석 영구 저장 | not run | 0 | 0 | 1 |
 
-- Totals: passed 188, failed 0, not run 2
+- Totals: passed 208, failed 0, not run 2
 
 ## Change summary
 
-- 별도 승인 범위에서 테스트 기본 데이터베이스의 대상과 리전 및 현재 인증 주체를 확인했습니다. 읽기 전용 권한 조회에서 문서 읽기·생성·삭제가 반환됐습니다.
-- 기존 구현을 재사용해 검증된 경로를 유지했습니다. 기능 코드나 문서 지침을 새로 변경하지 않았습니다.
-- 가상 문서 한 건을 생성하고 본문과 생성 버전을 다시 읽어 검증한 후 확인한 버전에 한해 조건부 삭제했습니다. 최종 조회에서 문서 부재를 확인했습니다.
-- 실제 문서 생성 요청 한 건과 조건부 삭제 요청 한 건을 실행했습니다. 쓰기 재시도와 별도 복구 삭제는 없었습니다.
-- 가상 문서 ID와 예상 해시 및 생성 확정 버전은 로컬 기록으로만 보존하고 일치를 검증했습니다. 기존 서버와 저장 플래그 및 백업과 stash는 보존했습니다.
-- Chromium은 하위 시나리오를 집계합니다. 실제 검증의 최종 부재 조회가 통과해 독립 잔여 조회는 별도로 실행하지 않았습니다.
+- 기존 Chromium 및 에뮬레이터 인프라를 재사용해 실제 직원 화면, HTTP 라우트, 출석 서비스, Admin SDK 저장소를 연결했습니다. 제품 코드와 데이터 형식은 그대로입니다.
+- 실제 Firebase 인증과 예약 원장 대신 가상 직원과 예약 픽스처를 제공했습니다. 브라우저 외부 연결과 백엔드의 에뮬레이터 외 연결을 차단했습니다.
+- 정상 등원과 하원, 등원 전 하원 거부, 중복 등원과 하원, 동일 요청 재전송, 서로 다른 직원의 두 HTTP 프로세스 경합을 검증했습니다.
+- 커밋 뒤 응답 유실, 실제 브라우저 타임아웃, 네트워크 차단에서 화면이 다시 조회하고 필요한 재시도에 같은 요청 ID를 사용했습니다. 커밋 전 실패에는 부분 기록이 없었습니다.
+- 화면 카드와 통계를 Firestore 문서의 실제 상태와 대조했습니다. 별도 직원 HTTP 프로세스 재시작 후에도 기록이 유지됐으며, 에뮬레이터 자체 재시작 후 복원은 스냅샷 내보내기와 가져오기로 별도 검증했습니다.
+- 기존 메모리 및 독립 Sheets 모의 회귀가 통과했습니다. 기존 서버와 저장 플래그와 백업 및 stash를 보존했습니다.
 
 ## Failure causes
 
@@ -48,8 +44,9 @@
 
 ## Remaining risks
 
-- 이번 검증은 단일 테스트 문서와 독립 명령에 한정됩니다. 직원 UI를 통한 영구 저장과 운영 환경은 검증 범위 밖입니다.
+- 실제 클라우드 인증과 예약 원장 연동 및 직원 화면을 통한 실제 쓰기는 미확인입니다.
+- 스냅샷 없는 에뮬레이터 재시작은 기록을 유지하지 않습니다.
 
 ## Recommended next work
 
-- 42단계 준비는 가능합니다. 직원 화면의 영구 저장 활성화와 추가 실제 데이터 변경은 별도 승인 범위를 먼저 확정합니다.
+- 43단계 준비는 가능합니다. 실제 테스트 프로젝트에 연결하기 전 별도 승인 범위와 가상 예약 한 건 및 복구 담당자를 확정합니다.
