@@ -14,6 +14,8 @@ const RULES='https://firebaserules.googleapis.com/v1/';
 const PROJECT_IAM='https://cloudresourcemanager.googleapis.com/v1/projects/'+PROJECT;
 const READ_PERMISSIONS=['datastore.databases.get','datastore.entities.list','datastore.entities.get',
  'resourcemanager.projects.getIamPolicy','firebaserules.releases.get','firebaserules.rulesets.get'];
+const ATTENDANCE_WRITE_PERMISSIONS=['datastore.entities.create','datastore.entities.update'];
+const CHECKED_PERMISSIONS=[...READ_PERMISSIONS,...ATTENDANCE_WRITE_PERMISSIONS];
 const ERROR_REASONS=new Set(['IAM_PERMISSION_DENIED','ACCESS_TOKEN_SCOPE_INSUFFICIENT','SERVICE_DISABLED','API_DISABLED',
  'PERMISSION_DENIED','UNAUTHENTICATED','NOT_FOUND','USER_PROJECT_DENIED']);
 const NETWORK_CODES=new Set(['EACCES','EPERM','ENOTFOUND','EAI_AGAIN','ETIMEDOUT','ECONNREFUSED','ECONNRESET','UND_ERR_CONNECT_TIMEOUT']);
@@ -108,8 +110,11 @@ async function diagnose({env,adc,getToken,fetchRequest=fetch}){
  await inspect('iamPermissions',PROJECT_IAM+':testIamPermissions',data=>{
   if(!data||typeof data!=='object'||Array.isArray(data)||data.permissions!==undefined&&!Array.isArray(data.permissions))
    throw Error('Invalid permissions response');
-  return {summary:{granted:READ_PERMISSIONS.filter(permission=>data.permissions?.includes(permission))}};
- },{permissions:READ_PERMISSIONS});
+  return {summary:{
+   granted:CHECKED_PERMISSIONS.filter(permission=>data.permissions?.includes(permission)),
+   attendanceWritePermissionsNotReturned:ATTENDANCE_WRITE_PERMISSIONS.filter(permission=>!data.permissions?.includes(permission))
+  }};
+ },{permissions:CHECKED_PERMISSIONS});
  const ruleset=await inspect('release',RULES+RELEASE+'?fields=name,rulesetName',data=>{
   const prefix='projects/'+PROJECT+'/rulesets/';
   if(data.name!==RELEASE||typeof data.rulesetName!=='string'||!data.rulesetName.startsWith(prefix)||

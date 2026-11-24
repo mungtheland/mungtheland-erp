@@ -50,7 +50,7 @@ test('permitted requests target only the fixed project and results omit content 
   ['cloudresourcemanager.googleapis.com','/v1/'+resource+':getIamPolicy','POST',
    {bindings:[{members:['serviceAccount:'+reader],condition:{}},{members:['user:private@example.invalid']}]}],
   ['cloudresourcemanager.googleapis.com','/v1/'+resource+':testIamPermissions','POST',
-   {permissions:['datastore.entities.get','private fixture permission']}],
+   {permissions:['datastore.entities.get','datastore.entities.create','private fixture permission']}],
   ['firebaserules.googleapis.com','/v1/'+release,'GET',{name:release,rulesetName:ruleset}],
   ['firebaserules.googleapis.com','/v1/'+ruleset,'GET',{name:ruleset,source:{files:[{content:'private rules text'}]}}]
  ];
@@ -68,14 +68,17 @@ test('permitted requests target only the fixed project and results omit content 
    if(path.endsWith(':getIamPolicy'))assert.deepEqual(JSON.parse(options.body),{options:{requestedPolicyVersion:3}});
    if(path.endsWith(':testIamPermissions'))assert.deepEqual(JSON.parse(options.body).permissions,[
     'datastore.databases.get','datastore.entities.list','datastore.entities.get',
-    'resourcemanager.projects.getIamPolicy','firebaserules.releases.get','firebaserules.rulesets.get'
+    'resourcemanager.projects.getIamPolicy','firebaserules.releases.get','firebaserules.rulesets.get',
+    'datastore.entities.create','datastore.entities.update'
    ]);
    return ok(data);
   }});
  assert.equal(count,expected.length);
  assert.ok(Object.values(result).every(check=>check.status==='passed'));
  assert.deepEqual(result.iam,{status:'passed',directBindings:1,conditionalBindings:1});
- assert.deepEqual(result.iamPermissions,{status:'passed',granted:['datastore.entities.get']});
+ assert.deepEqual(result.iamPermissions,{status:'passed',
+  granted:['datastore.entities.get','datastore.entities.create'],
+  attendanceWritePermissionsNotReturned:['datastore.entities.update']});
  assert.deepEqual(result.rules,{status:'passed',sourceFiles:1});
  assert.doesNotMatch(JSON.stringify(result),/private|hidden-id|@|rulesets/);
 });
@@ -88,6 +91,21 @@ test('empty collection and denied optional scopes are distinguished from a faile
  assert.equal(result.rules.status,'not-run');
  assert.deepEqual(result.iam,{status:'failed',http:403,reasons:['PERMISSION_DENIED','IAM_PERMISSION_DENIED']});
  assert.doesNotMatch(JSON.stringify(result),/raw fixture/);
+});
+
+test('permission check reports missing create and update without a data write',async()=>{
+ const methods=[];
+ const result=await diagnose({env:{},adc,getToken:async()=>'fixture',fetchRequest:async(raw,options)=>{
+  const path=new URL(raw).pathname;
+  methods.push([path,options.method]);
+  if(path.endsWith(':testIamPermissions'))return ok({permissions:['datastore.entities.get']});
+  if(path.endsWith('/attendance_test_v1'))return ok({});
+  return deny();
+ }});
+ assert.deepEqual(result.iamPermissions.attendanceWritePermissionsNotReturned,[
+  'datastore.entities.create','datastore.entities.update'
+ ]);
+ assert.ok(methods.every(([path,method])=>method==='GET'||/:(getIamPolicy|testIamPermissions)$/.test(path)));
 });
 
 test('database identity mismatch stops; unsafe rules and document names are not followed',async()=>{
