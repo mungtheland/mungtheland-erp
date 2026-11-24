@@ -79,7 +79,9 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
  ].find(existsSync);
  assert.ok(executable,'Test setup: install Chromium locally or set CHROMIUM_PATH');
  const html=await readFile(join(__dirname,'staff-local-test.html'));
- let recover=false, normalState='예약';
+ let recover=false, normalState='예약', blockNextRead=false;
+ const checkInRequests=[];
+ let checkOutRequest;
  const routeErrors=[],pageErrors=[],requests=[];
  const server=http.createServer((req,res)=>{
   const send=(status,data)=>{
@@ -112,12 +114,27 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
    if(req.method==='GET'&&kind==='arrival-request'&&!action){send(200,{request:null});return;}
    if(req.method==='GET'&&kind==='attendance'&&!action){
     if(id==='RSV-HTTP'&&!recover){send(503,{});return;}
+    if(id==='RSV-NORMAL'&&blockNextRead){blockNextRead=false;send(503,{});return;}
     send(200,{attendance:{state:id==='RSV-NORMAL'?normalState:id==='RSV-HTTP'?'등원 중':'예약'}});
     return;
    }
    if(req.method==='POST'&&kind==='attendance'&&id==='RSV-NORMAL'){
-    if(action==='check-in'&&normalState==='예약'){normalState='등원 중';send(200,{attendance:{state:normalState}});return;}
-    if(action==='check-out'&&normalState==='등원 중'){normalState='하원 완료';send(200,{attendance:{state:normalState}});return;}
+    const requestId=req.headers['x-attendance-request-id'];
+    if(!requestId){routeErrors.push('Missing attendance request ID');send(400,{});return;}
+    if(action==='check-in'&&normalState==='예약'){
+     checkInRequests.push(requestId);
+     if(checkInRequests.length===2)normalState='등원 중';
+     // Send response headers first so Chromium cannot transparently resend
+     // the POST as a failed connection reuse before exposing the body error.
+     res.writeHead(200,{'Content-Type':'application/json','Content-Length':'1000'});
+     res.write('{');
+     setTimeout(()=>res.destroy(),20);return;
+    }
+    if(action==='check-out'&&normalState==='등원 중'){
+     checkOutRequest=requestId;
+     normalState='하원 완료';blockNextRead=true;
+     send(503,{code:'ATTENDANCE_OUTCOME_UNKNOWN'});return;
+    }
    }
   }
   routeErrors.push('Unexpected fixture request: '+req.method+' '+req.url);
@@ -197,6 +214,7 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
  const summary=(total,reserved,inProgress,done,review)=>`JSON.stringify([...document.querySelectorAll('#booking-summary > div')].map(cell=>[cell.firstElementChild.textContent,Number(cell.lastElementChild.textContent)]))===${JSON.stringify(JSON.stringify([['전체 예약',total],['미등원',reserved],['등원 중',inProgress],['하원 완료',done],['출석 확인 필요',review],['직원 확인 대기',0]]))}`;
  const visible=id=>`([${card(id)}].some(card=>card&&!card.hidden))`;
  const detail=(id,expected)=>`(${card(id)})?.querySelector('.attendance-detail')?.textContent.includes(${JSON.stringify(expected)})`;
+ const notice=(id,expected)=>`(${card(id)})?.querySelector('.attendance-action')?.textContent.includes(${JSON.stringify(expected)})`;
  const buttons=(id,inDisabled,outDisabled)=>`JSON.stringify([...( ${card(id)} )?.querySelectorAll('button')||[]].slice(1).map(button=>button.disabled))===${JSON.stringify(JSON.stringify([inDisabled,outDisabled]))}`;
 
  await t.test('fixture login and isolated HTTP / network errors',async()=>{
@@ -210,13 +228,22 @@ test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000}
    detail('RSV-NETWORK','출석 조회 중 오류 발생'),buttons('RSV-HTTP',true,true),
    buttons('RSV-NETWORK',true,true),buttons('RSV-NORMAL',false,true),summary(3,1,0,0,2)].join(' && '),'isolated errors and summary');
  });
- await t.test('error recovery, check-in and check-out update the summary',async()=>{
+ await t.test('error recovery and a lost POST response resynchronize attendance',async()=>{
   recover=true;
   await click('#list');
   await check([buttons('RSV-HTTP',true,false),buttons('RSV-NORMAL',false,true),summary(3,1,1,0,1)].join(' && '),'recovered HTTP booking and summary');
   await evaluate(`(${card('RSV-NORMAL')}).querySelectorAll('button')[1].click()`);
-  await check([buttons('RSV-NORMAL',true,false),summary(3,0,2,0,1)].join(' && '),'check-in and updated summary');
+  await check([buttons('RSV-NORMAL',false,true),notice('RSV-NORMAL','처리 결과를 확인할 수 없습니다. 현재 출석 상태를 다시 조회했습니다.'),summary(3,1,1,0,1)].join(' && '),'failed connection before commit and refreshed summary');
+  await evaluate(`(${card('RSV-NORMAL')}).querySelectorAll('button')[1].click()`);
+  await check([buttons('RSV-NORMAL',true,false),notice('RSV-NORMAL','처리 결과를 확인할 수 없습니다.'),summary(3,0,2,0,1)].join(' && '),'lost check-in response after commit and refreshed summary');
+  assert.equal(checkInRequests.length,2);
+  assert.equal(checkInRequests[0],checkInRequests[1]);
+ });
+ await t.test('unknown checkout with a failed read blocks actions until refresh',async()=>{
   await evaluate(`(${card('RSV-NORMAL')}).querySelectorAll('button')[2].click()`);
+  await check([buttons('RSV-NORMAL',true,true),notice('RSV-NORMAL','목록을 다시 조회해 주세요.'),summary(3,0,1,0,2)].join(' && '),'failed recovery read stays unknown and blocks actions');
+  assert.notEqual(checkOutRequest,checkInRequests[0]);
+  await click('#list');
   await check([buttons('RSV-NORMAL',true,true),summary(3,0,1,1,1)].join(' && '),'check-out and updated summary');
   assert.ok(requests.some(([method,url])=>method==='POST'&&url.endsWith('/check-in')));
   assert.ok(requests.some(([method,url])=>method==='POST'&&url.endsWith('/check-out')));

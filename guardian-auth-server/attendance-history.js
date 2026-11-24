@@ -29,4 +29,23 @@ function validateAttendanceHistory(bookingId,events){
  return ['예약','등원 중','하원 완료'][events.length];
 }
 
-module.exports={validateAttendanceHistory};
+const requestIdPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+const requestEventPattern=/^EVT-[a-f0-9]{8}-[a-f0-9]{4}-8[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+
+function attendanceRequestEventId(requestId){
+ if(typeof requestId!=='string'||!requestIdPattern.test(requestId))
+  throw Object.assign(new Error('Invalid attendance request ID'),{code:'INVALID_ATTENDANCE_REQUEST_ID'});
+ // Reserve UUID version 8 for client request IDs. Legacy server event IDs use version 4.
+ return 'EVT-'+requestId.slice(0,14)+'8'+requestId.slice(15);
+}
+
+function isAttendanceReplay(events,candidate){
+ if(!requestEventPattern.test(candidate.eventId))return false;
+ const saved=events.find(event=>event.eventId===candidate.eventId);
+ if(!saved)return false;
+ if(saved.action!==candidate.action||saved.staffId!==candidate.staffId)
+  throw Object.assign(new Error('Attendance request ID conflict'),{code:'ATTENDANCE_REQUEST_ID_CONFLICT'});
+ return true;
+}
+
+module.exports={validateAttendanceHistory,attendanceRequestEventId,isAttendanceReplay};

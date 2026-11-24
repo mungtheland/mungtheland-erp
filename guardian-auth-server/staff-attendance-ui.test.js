@@ -16,6 +16,7 @@ class Element{
  get textContent(){return this.text;}
  append(...elements){this.children.push(...elements);}
  replaceChildren(){this.textContent='';}
+ setAttribute(){}
 }
 
 test('attendance cards isolate detail errors and synchronize summary, filters and transitions',async()=>{
@@ -32,13 +33,18 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  }));
  const response=(body,status=200)=>({ok:status===200,status,json:async()=>body});
  let state='등원 중';
+ const checkoutRequests=[];
  const fetch=async(url,options)=>{
   if(url==='/api/staff/bookings')return response({bookings,combined});
   if(url.endsWith('/arrival-request'))return response({request:null});
   if(url.endsWith('/RSV-HTTP/attendance'))return response({},503);
   if(url.endsWith('/RSV-NETWORK/attendance'))throw Error('Network failure');
   if(url.endsWith('/RSV-RECOVER/attendance/check-out')){
-   assert.equal(options.method,'POST');state='하원 완료';return response({attendance:{state}});
+   assert.equal(options.method,'POST');
+   assert.ok(options.signal instanceof AbortSignal);
+   checkoutRequests.push(options.headers['X-Attendance-Request-Id']);
+   if(checkoutRequests.length===1)throw new DOMException('Fixture timeout','TimeoutError');
+   state='하원 완료';return response({attendance:{state}});
   }
   if(url.endsWith('/RSV-RECOVER/attendance'))return response({attendance:{state}});
   if(url.endsWith('/RSV-OTHER/attendance'))return response({attendance:{state:'예약'}});
@@ -46,7 +52,8 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  };
  vm.runInNewContext(script,{
   document:{getElementById:element,createElement:()=>new Element()},
-  initializeApp:()=>({}),getAuth:()=>({currentUser:{getIdToken:async()=>'mock'}}),fetch
+  initializeApp:()=>({}),getAuth:()=>({currentUser:{getIdToken:async()=>'mock'}}),fetch,
+  AbortSignal,crypto:require('node:crypto')
  });
  const visitDate=element('visit-date'),filter=element('attendance-filter');
  const cards=()=>element('booking-list').children;
@@ -74,6 +81,13 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  assert.deepEqual(cards().map(card=>Boolean(card.hidden)),[true,true,false]);
  assert.equal(recovered.children[8].disabled,false);
  await recovered.children[8].onclick();
+ assert.match(recovered.children[9].textContent,/처리 결과를 확인할 수 없습니다.*다시 조회했습니다/);
+ assert.equal(recovered.children[8].disabled,false);
+ assert.deepEqual(summary(),{'전체 예약':3,'미등원':0,'등원 중':1,'하원 완료':0,'출석 확인 필요':2,'직원 확인 대기':0});
+ await recovered.children[8].onclick();
+ assert.ok(checkoutRequests[0]);
+ assert.equal(checkoutRequests[0],checkoutRequests[1]);
+ assert.equal(recovered.children[9].textContent,'출석 처리를 확인했습니다.');
  assert.equal(recovered.children[2].textContent,'등하원: 하원 완료');
  assert.equal(recovered.children[8].disabled,true);
  assert.equal(Boolean(recovered.hidden),true);

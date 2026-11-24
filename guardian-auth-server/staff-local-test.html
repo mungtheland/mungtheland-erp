@@ -9,6 +9,7 @@ const koreaToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year
 const formatKst=value=>{if(!value)return '기록 없음';const d=new Date(value);if(Number.isNaN(d.getTime()))return '시간 확인 불가';return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);};
 $('visit-date').value=koreaToday();
 let listRequest=0;let currentEntries=[];
+const pendingAttendanceRequests=new Map();
 function applyListFilters(){const filter=$('attendance-filter').value,term=$('booking-search').value.trim().toLocaleLowerCase('ko-KR');for(const item of currentEntries){const state=item.state||'';item.element.hidden=(filter!=='all'&&state!==filter)||(term&&!item.search.includes(term));}}
 $('attendance-filter').onchange=applyListFilters;$('booking-search').oninput=applyListFilters;
 async function loadList(){
@@ -74,10 +75,19 @@ async function loadList(){
    const button=document.createElement('button');button.type='button';button.textContent='등원 요청사항 확인';
    button.onclick=()=>{$('booking').value=booking.bookingId;$('load').click();};
    const attendance=document.createElement('p');attendance.className='attendance-detail';attendance.textContent='등하원 시각 조회 중';
+   const actionNotice=document.createElement('p');actionNotice.className='attendance-action';actionNotice.setAttribute('role','status');
+   const attendanceUrl='/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance';
    const inButton=document.createElement('button'),outButton=document.createElement('button');
    inButton.type='button';outButton.type='button';inButton.textContent='등원 처리 (테스트)';outButton.textContent='하원 처리 (테스트)';
    inButton.disabled=true;outButton.disabled=true;
-   const update=async()=>{
+   const showAttendance=v=>{
+    if(!['예약','등원 중','하원 완료'].includes(v?.state))throw Error('Invalid attendance response');
+    attendance.textContent=(v.checkIn?'등원 '+formatKst(v.checkIn.at)+' · '+v.checkIn.staffId:'등원 기록 없음')+(v.checkOut?' / 하원 '+formatKst(v.checkOut.at)+' · '+v.checkOut.staffId:'');
+    item.state=v.state;item.attendanceError=false;
+    inButton.disabled=v.state!=='예약';outButton.disabled=v.state!=='등원 중';
+    renderAttendance();applyListFilters();renderSummary();
+   };
+   const update=async(accessToken=token)=>{
     if(seq!==listRequest)return;
     inButton.disabled=true;outButton.disabled=true;
     const fail=message=>{
@@ -86,33 +96,62 @@ async function loadList(){
      renderAttendance();applyListFilters();renderSummary();
     };
     try{
-     const res=await fetch('/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+     const res=await fetch(attendanceUrl,{headers:{Authorization:'Bearer '+accessToken},cache:'no-store',signal:AbortSignal.timeout(10000)});
      if(seq!==listRequest)return;
      if(!res.ok){
       fail(combined?.attendanceError&&res.status===503?'출석 기록 확인 필요 — 등·하원 처리 차단':'출석 조회 실패 HTTP '+res.status+' — 등·하원 처리 차단');
       return;
      }
-     const {attendance:v}=await res.json();
+     const data=await res.json();
      if(seq!==listRequest)return;
-     if(!['예약','등원 중','하원 완료'].includes(v?.state))throw Error('Invalid attendance response');
-     attendance.textContent=(v.checkIn?'등원 '+formatKst(v.checkIn.at)+' · '+v.checkIn.staffId:'등원 기록 없음')+(v.checkOut?' / 하원 '+formatKst(v.checkOut.at)+' · '+v.checkOut.staffId:'');
-     item.state=v.state;item.attendanceError=false;
-     inButton.disabled=v.state!=='예약';outButton.disabled=v.state!=='등원 중';
-     renderAttendance();applyListFilters();renderSummary();
+     showAttendance(data.attendance);
+     return true;
     }catch(_){
      if(seq===listRequest)fail('출석 조회 중 오류 발생 — 등·하원 처리 차단');
     }
    };
    const change=async action=>{
+    if(seq!==listRequest)return;
     inButton.disabled=true;outButton.disabled=true;
+    const key=booking.bookingId+'/'+action;
+    const pendingId=pendingAttendanceRequests.get(key);
+    const requestId=pendingId||crypto.randomUUID();
+    pendingAttendanceRequests.set(key,requestId);
+    actionNotice.textContent='출석 처리 중';
+    const unknown='처리 결과를 확인할 수 없습니다.';
+    let notice=unknown;
+    let accessToken;
     try{
-     const res=await fetch('/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance/'+action,{method:'POST',headers:{Authorization:'Bearer '+await auth.currentUser.getIdToken()}});
-     if(!res.ok){attendance.textContent=res.status===409?'상태가 이미 변경됐습니다. 다시 조회해 주세요.':'상태 변경 실패 HTTP '+res.status;}
-     await update();
-    }catch(_){attendance.textContent='상태 변경 중 오류 발생';}
+     accessToken=await auth.currentUser.getIdToken();
+     if(seq!==listRequest)return;
+     const res=await fetch(attendanceUrl+'/'+action,{method:'POST',headers:{Authorization:'Bearer '+accessToken,'X-Attendance-Request-Id':requestId},signal:AbortSignal.timeout(10000)});
+     const data=await res.json().catch(()=>null);
+     if(seq!==listRequest)return;
+     if(res.ok&&data?.attendance){
+      showAttendance(data.attendance);
+      pendingAttendanceRequests.delete(key);
+      actionNotice.textContent='출석 처리를 확인했습니다.';
+      return;
+     }
+     if((res.status>=400&&res.status<500&&res.status!==408)||data?.code==='ATTENDANCE_WRITE_FAILED'){
+      if(!pendingId||data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')pendingAttendanceRequests.delete(key);
+      if(data?.code==='ATTENDANCE_CLOCK_ROLLBACK')notice='서버 시각이 이전 기록보다 일러 저장을 거부했습니다.';
+      else if(data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')notice='요청 ID가 다른 처리와 충돌했습니다.';
+      else if(res.status===409)notice='현재 출석 상태와 요청이 충돌했습니다.';
+      else notice='출석 처리 요청이 거부됐습니다. (HTTP '+res.status+')';
+     }
+    }catch(_){
+     if(!accessToken){
+      notice='로그인 상태를 확인해 주세요. 출석 요청을 보내지 못했습니다.';
+      if(seq===listRequest&&!pendingId)pendingAttendanceRequests.delete(key);
+     }
+    }
+    if(seq!==listRequest)return;
+    const refreshed=await update(accessToken);
+    if(seq===listRequest)actionNotice.textContent=notice+(refreshed?' 현재 출석 상태를 다시 조회했습니다.':' 목록을 다시 조회해 주세요.');
    };
    inButton.onclick=()=>change('check-in');outButton.onclick=()=>change('check-out');
-   card.append(name,info,combinedText,status,reviewText,button,attendance,inButton,outButton);root.append(card);
+   card.append(name,info,combinedText,status,reviewText,button,attendance,inButton,outButton,actionNotice);root.append(card);
    currentEntries.push(item);
    updates.push(update);
   }
@@ -127,7 +166,7 @@ $('list').onclick=loadList;
 $('today').onclick=()=>{$('visit-date').value=koreaToday();void loadList();};
 $('visit-date').onchange=loadList;const render=v=>{const fields=[['예약번호',v.bookingId],['식사 희망시간',v.mealTime],['사료 지참',v.foodProvided],['매너벨트 지참',v.mannerBelt],['건강 상태',v.condition],['특이사항',v.notes],['요청 버전',v.revision],['직원 확인 버전',v.reviewedRevision],['확인 직원',v.acknowledgedBy||'없음'],['확인 시각',v.acknowledgedAt||'없음']];const root=$('review-fields');root.replaceChildren();for(const [label,value] of fields){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=String(value??'미입력');root.append(dt,dd);}$('review-status').textContent=Number(v.revision)>0&&Number(v.reviewedRevision)===Number(v.revision)?'직원 확인 완료':'직원 확인 대기';$('review').hidden=false;};
 $('login').onsubmit=async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value);show('로그인 성공. 요청을 조회하세요.')}catch(_){show('로그인 실패')}finally{$('password').value=''}};
-$('logout').onclick=async()=>{++listRequest;currentEntries=[];$('booking-list').replaceChildren();$('booking-summary').replaceChildren();await signOut(auth);revision=null;$('ack').disabled=true;$('review').hidden=true;show('로그아웃됨')};
+$('logout').onclick=async()=>{++listRequest;currentEntries=[];pendingAttendanceRequests.clear();$('booking-list').replaceChildren();$('booking-summary').replaceChildren();await signOut(auth);revision=null;$('ack').disabled=true;$('review').hidden=true;show('로그아웃됨')};
 $('load').onclick=async()=>{revision=null;$('ack').disabled=true;$('review').hidden=true;try{if(!auth.currentUser){show('직원 로그인이 필요합니다.');return;}const token=await auth.currentUser.getIdToken();const r=await fetch(url(),{headers:{Authorization:'Bearer '+token},cache:'no-store'});const d=await r.json();if(!r.ok){show(r.status===401||r.status===403?'인증 또는 접근 권한 확인 필요 (HTTP '+r.status+'). 다시 로그인해 주세요.':'조회 거부 HTTP '+r.status);return;}const v=d.request;if(!v){show('요청사항 없음');return;}revision=v.revision;render(v);show('요청 조회 완료');$('ack').disabled=Number(v.reviewedRevision)===Number(v.revision)}catch(_){show('조회 실패')}};
 $('ack').onclick=async()=>{if(revision===null)return;$('ack').disabled=true;try{const token=await auth.currentUser.getIdToken();const r=await fetch(url()+'/acknowledge',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:revision})});show(r.ok?'확인 처리 완료. 다시 조회하세요.':r.status===409?'요청이 수정되었습니다. 다시 조회해 주세요.':r.status===401||r.status===403?'인증 또는 접근 권한 확인 필요 (HTTP '+r.status+'). 다시 로그인해 주세요.':'확인 실패 HTTP '+r.status+' — 다시 조회하세요.')}catch(_){show('서버 연결 실패')}};
 </script></html>

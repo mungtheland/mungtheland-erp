@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {createFirestoreAttendanceStore}=require('./firestore-attendance-store');
 const {createStaffAttendanceService}=require('./staff-attendance');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
+const {attendanceRequestEventId}=require('./attendance-history');
 const projectId='mungtheland-guardian-test',id='RSV-TEST-001';
 const staff={role:'staff',status:'active',staffId:'STAFF-TEST-001'};
 const bookingRepository={findById:async key=>key===id?{bookingId:key,status:'예약'}:null};
@@ -15,16 +16,17 @@ function fakeDb({beforeRetry}={}){
   const attempt=async()=>{
    const writes=[];
    const tx={get:async ref=>snapshot(ref.id),set:(ref,value)=>writes.push([ref.id,structuredClone(value)])};
-   await fn(tx);
-   return writes;
+   const result=await fn(tx);
+   return {writes,result};
   };
   const run=async()=>{
-   let writes=await attempt();
+   let committed=await attempt();
    if(beforeRetry){
     beforeRetry(docs);
-    writes=await attempt();
+    committed=await attempt();
    }
-   for(const [key,value] of writes)docs.set(key,value);
+   for(const [key,value] of committed.writes)docs.set(key,value);
+   return committed.result;
   };
   const next=queue.then(run);queue=next.catch(()=>{});return next;
  };
@@ -166,4 +168,26 @@ test('rejects already-stored reverse timestamps and duplicate IDs',async()=>{
   await assert.rejects(store.commitTransition({event:checkOut,expectedState:'등원 중'}),{code:'INVALID_ATTENDANCE_HISTORY'});
   assert.deepEqual(docs.get(id),original);
  }
+});
+
+test('transaction retry recognizes another commit of the same request and returns its history',async()=>{
+ const event={...checkIn,eventId:attendanceRequestEventId('12345678-1234-4234-8234-123456789abc')};
+ const alreadySaved={...event,at:previousAt};
+ const original={...checkedIn,events:[alreadySaved]};
+ const {db,docs}=fakeDb({beforeRetry:documents=>documents.set(id,original)});
+ const store=createFirestoreAttendanceStore({db,projectId});
+ assert.deepEqual(await store.commitTransition({event,expectedState:'예약'}),[alreadySaved]);
+ assert.deepEqual(docs.get(id),original);
+});
+
+test('parallel staff requests in the same transaction scope cannot share a request ID',async()=>{
+ const {db,docs}=fakeDb();
+ const stores=[createFirestoreAttendanceStore({db,projectId}),createFirestoreAttendanceStore({db,projectId})];
+ const event={...checkIn,eventId:attendanceRequestEventId('12345678-1234-4234-8234-123456789abc')};
+ const [winner,loser]=await Promise.allSettled(stores.map((store,index)=>store.commitTransition({
+  event:{...event,staffId:'STAFF-TEST-00'+(index+1)},expectedState:'예약'
+ })));
+ assert.equal(winner.status,'fulfilled');
+ assert.equal(loser.reason.code,'ATTENDANCE_REQUEST_ID_CONFLICT');
+ assert.deepEqual(docs.get(id).events,[event]);
 });

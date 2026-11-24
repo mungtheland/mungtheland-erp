@@ -1,5 +1,5 @@
 'use strict';
-const {validateAttendanceHistory}=require('./attendance-history');
+const {validateAttendanceHistory,isAttendanceReplay}=require('./attendance-history');
 const PROJECT='mungtheland-guardian-test';
 function createFirestoreAttendanceStore({db,projectId}){
  if(projectId!==PROJECT||db?.projectId!==PROJECT)throw Error('Test Firestore project only');
@@ -20,9 +20,11 @@ function createFirestoreAttendanceStore({db,projectId}){
   if(typeof event?.bookingId!=='string')throw Object.assign(new Error('Invalid attendance history'),{code:'INVALID_ATTENDANCE_HISTORY'});
   const candidate={...event};
   const ref=doc(candidate.bookingId);
-  await db.runTransaction(async tx=>{
+  return db.runTransaction(async tx=>{
    const data=parse(await tx.get(ref),candidate.bookingId);
-   if(data.state!==expectedState||candidate.action!==(data.state==='예약'?'check-in':'check-out'))throw Error('Invalid transition');
+   if(isAttendanceReplay(data.events,candidate))return data.events;
+   if(data.state!==expectedState||candidate.action!==(data.state==='예약'?'check-in':'check-out'))
+    throw Object.assign(new Error('Invalid transition'),{code:'ATTENDANCE_STATE_CONFLICT'});
    const events=[...data.events,candidate];
    let state;
    try{state=validateAttendanceHistory(candidate.bookingId,events);}
@@ -32,6 +34,7 @@ function createFirestoreAttendanceStore({db,projectId}){
     throw error;
    }
    tx.set(ref,{...data,bookingId:candidate.bookingId,state,events});
+   return events;
   });
  }
  return {read,commitTransition};

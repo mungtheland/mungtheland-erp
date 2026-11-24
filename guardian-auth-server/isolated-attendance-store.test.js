@@ -53,7 +53,7 @@ test('failed append does not falsely record check-in',async()=>{
   append:async()=>{throw Error('Sheets unavailable');}
  }}};
  const service=createStaffAttendanceService({bookingRepository,store:createIsolatedAttendanceStore({sheets})});
- await assert.rejects(()=>service.transition(staff,'RSV-TEST-001','check-in'),/Sheets unavailable/);
+ await assert.rejects(()=>service.transition(staff,'RSV-TEST-001','check-in'),{code:'ATTENDANCE_OUTCOME_UNKNOWN'});
  assert.equal((await service.get(staff,'RSV-TEST-001')).state,'예약');
 });
 test('attendance events for other booking IDs cannot alter requested booking',async()=>{
