@@ -1,46 +1,30 @@
 # Codex work report
 
-- Step: 33
-- Work time (KST): 2026-11-24T13:54:43.881+09:00
+- Step: decision-approval-rules
+- Work time (KST): 2026-11-24T13:56:07.718+09:00
 - Branch: feature/staff-attendance-desktop
-- Implementation commit: 4c1da383d34aae52ac179c8fee0e5bfcc2d21cc0
+- Implementation commit: 1340ca527413964ea548e5f60fa6bb3331c9604b
 - Implementation push: pushed
-- History: history/20261124T135443881-33-4c1da383d34a.md
+- History: history/20261124T135607718-decision-approval-rules-1340ca527413.md
 
 ## Changed files
 
-- guardian-auth-server/attendance-history.js
-- guardian-auth-server/firestore-attendance-store.js
-- guardian-auth-server/firestore-attendance-store.test.js
-- guardian-auth-server/isolated-attendance-store.test.js
-- guardian-auth-server/staff-arrival-http.js
-- guardian-auth-server/staff-attendance-ui.test.js
-- guardian-auth-server/staff-attendance.browser.cjs
-- guardian-auth-server/staff-attendance.js
-- guardian-auth-server/staff-local-test.html
-- guardian-auth-server/transactional-attendance.test.js
+- AGENTS.md
 
 ## Tests
 
 | Command | Status | Passed | Failed | Not run |
 | --- | --- | ---: | ---: | ---: |
-| node --test $files | executed | 156 | 0 | 0 |
-| node --test guardian-auth-server/staff-attendance.browser.cjs | executed | 4 | 0 | 0 |
-| node --check $p | executed | 9 | 0 | 0 |
-| node --check (HTML module via stdin) | executed | 1 | 0 | 0 |
-| git diff --check | executed | 1 | 0 | 0 |
-| 실제 Firestore 다중 프로세스 경합 | not run | 0 | 0 | 1 |
-| 실제 Firestore 커밋 응답 유실 | not run | 0 | 0 | 1 |
+| git diff --cached --check | executed | 1 | 0 | 0 |
+| 직원 출석 기능 회귀 테스트 묶음 | not run | 0 | 0 | 1 |
 
-- Totals: passed 171, failed 0, not run 2
+- Totals: passed 1, failed 0, not run 1
 
 ## Change summary
 
-- 33단계의 당시 구현 및 테스트를 소급 기록했습니다. KST 시각은 등록 시각입니다.
-- 트랜잭션이 확인한 이력으로 API 응답을 생성합니다. 응답 유실과 타임아웃 시 상태를 다시 읽어 카드와 통계를 갱신합니다.
-- 같은 예약·직원·동작과 요청 ID의 재전송은 이벤트를 추가하지 않습니다. 기존 문서 형식과 헤더 없는 호출을 지원합니다.
-- 로컬 테스트는 직원 서버 단위 테스트 전체와 ERP 출석 통합 테스트를 실행했습니다. Chromium 상위 묶음은 시나리오 수에서 제외했습니다.
-- 초기 모의 실행의 Sheets 예외 기대값과 Chromium 연결 종료 픽스처 문제는 수정 후 모두 통과했습니다.
+- 일반적인 기술 선택은 Codex가 판단하고 완료 보고서에 선택 이유를 기록하도록 지침을 추가했습니다.
+- 기존 권한 제한을 보존하도록 별도 절을 추가했고 승인 대상과 한 번에 한 건의 승인 방식을 명시했습니다.
+- 기능 코드와 운영 데이터에 영향이 없는 문서 변경으로 범위를 제한했습니다.
 
 ## Failure causes
 
@@ -48,9 +32,8 @@
 
 ## Remaining risks
 
-- 실제 Firestore 경합과 응답 유실은 확인이 필요합니다.
-- 미확정 요청 ID는 페이지 메모리에만 남습니다. Sheets 저장 모드는 프로세스 간 원자성을 보장하지 않습니다.
+- 각 세션에서 저장소 지침을 읽고 적용해야 합니다.
 
 ## Recommended next work
 
-- 별도 승인된 격리 환경에서 동시 요청과 커밋 응답 유실 및 재시작 복원을 검증합니다.
+- 다음 작업부터 일반적인 기술 판단과 사전 승인이 필요한 조치를 구분하고 선택 이유를 보고서에 남깁니다.
