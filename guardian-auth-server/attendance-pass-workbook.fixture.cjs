@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 
-const sources=['OperatorAudit.js','PassAdjust.js'].map(name=>fs.readFileSync(path.join(__dirname,'../src',name),'utf8'));
+const sources=['OperatorAudit.js','AttendancePassPlan.js','PassAdjust.js'].map(name=>fs.readFileSync(path.join(__dirname,'../src',name),'utf8'));
 const dateKst=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'});
 
 function createPassWorkbookFixture({now='2026-11-24T02:00:00Z'}={}){

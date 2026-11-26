@@ -21,7 +21,7 @@ context.Session.getActiveUser=()=>({getEmail:()=> 'test@example.invalid'});
 context.PropertiesService={getScriptProperties:()=>({getProperty:key=>key==='MD_PASS_CORRECTION_APPROVERS'?'{"test@example.invalid":"PASS-ADMIN-FIXTURE"}':null})};
 vm.createContext(context);
 function loadPassFunctions(runtime){
-  for(const filename of ['src/OperatorAudit.js','src/Passes.js','src/PassAdjust.js']){
+  for(const filename of ['src/OperatorAudit.js','src/Passes.js','src/AttendancePassPlan.js','src/PassAdjust.js']){
     vm.runInContext(fs.readFileSync(filename,'utf8'),runtime,{filename});
   }
 }

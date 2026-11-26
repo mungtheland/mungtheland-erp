@@ -14,6 +14,8 @@ const {createStaffAttendanceService}=require('./staff-attendance');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {runEmulatorProbe}=require('./firestore-attendance-write-probe');
 const {runEmulatorResidueCheck}=require('./firestore-attendance-residue-check');
+const {createPassDeductionDryRun}=require('./staff-pass-dry-run');
+const {createSyntheticDryRunFixture}=require('./run-staff-pass-dry-run.cjs');
 
 const [host,portText]=EMULATOR_HOST.split(':');
 const port=Number(portText);
@@ -173,6 +175,7 @@ if(require.main===module&&process.argv[2]==='worker'){
   assert.throws(()=>createFirestoreAttendanceStore({db:client.db,projectId:EMULATOR_PROJECT}),/Test Firestore project only/);
   const service=()=>makeService(client.store);
   const persistedId=bookingId();
+  const dryRunBookingId=bookingId();
 
   await t.test('checkout before check-in is rejected; check-in and checkout persist',async()=>{
    const id=persistedId;
@@ -183,11 +186,38 @@ if(require.main===module&&process.argv[2]==='worker'){
    assert.deepEqual((await client.store.read(id)).map(event=>event.action),['check-in','check-out']);
   });
   await t.test('same request replays; a different request conflicts',async()=>{
-   const id=bookingId(),requestId=randomUUID();
+   const id=dryRunBookingId,requestId=randomUUID();
    const saved=await service().transition(staff[0],id,'check-in',requestId);
    assert.deepEqual(await service().transition(staff[0],id,'check-in',requestId),saved);
    await assert.rejects(service().transition(staff[0],id,'check-in',randomUUID()),/Invalid transition/);
    assert.equal((await client.store.read(id)).length,1);
+  });
+  await t.test('pass dry-run reads committed attendance and leaves the emulator document version intact',async()=>{
+   const fixture=createSyntheticDryRunFixture({projectId:EMULATOR_PROJECT});
+   const {binding}=fixture.ports;
+   binding.bookingIds=[dryRunBookingId];
+   const ref=client.db.collection(binding.collection).doc(dryRunBookingId);
+   const before=await ref.get();
+   const [event]=before.data().events;
+   fixture.booking[0]=dryRunBookingId;
+   fixture.booking[1]='2026-11-24';
+   Object.assign(fixture.request.command,{bookingId:dryRunBookingId,eventId:event.eventId});
+   fixture.ports.readAttendance=async({projectId,databaseId,region,collection,bookingId})=>{
+    assert.equal(projectId,EMULATOR_PROJECT);
+    assert.equal(databaseId,'(default)');
+    assert.equal(collection,binding.collection);
+    assert.equal(bookingId,dryRunBookingId);
+    return {projectId,databaseId,region,collection,document:(await ref.get()).data()};
+   };
+   const prior=structuredClone(fixture.workbook);
+   const result=await createPassDeductionDryRun(fixture.ports)(fixture.request);
+   assert.equal(result.status,'ELIGIBLE');
+   assert.equal(result.projection.remainingAfter,7);
+   assert.equal(result.writesPerformed,0);
+   const after=await ref.get();
+   assert.ok(after.updateTime.isEqual(before.updateTime));
+   assert.deepEqual(after.data(),before.data());
+   assert.deepEqual(fixture.workbook,prior);
   });
   await t.test('discarded POST response and same-ID replay retain one event',async()=>{
    const id=bookingId(),requestId=randomUUID();

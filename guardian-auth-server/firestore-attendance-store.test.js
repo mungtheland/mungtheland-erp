@@ -223,17 +223,17 @@ test('conflicting manual deduction on a different pass blocks automatic and alte
 for(const [label,options,modify,expected] of [
  ['zero uses',{remaining:0},f=>{
   for(let i=0;i<8;i++)f.workbook.history.push(['HIST-PREV-'+i,f.workbook.clock(),'차감',f.passId,'RSV-PAST-'+i,-1,8-i,7-i,'fixture','']);
- },/잔여 횟수/],
- ['before starts',{start:'2026-11-25'},()=>{},/시작일 이전/],
- ['expired',{expiry:'2026-11-23'},()=>{},/만료일 이후/],
- ['another dog',{},f=>{f.pass[1]='DOG-OTHER';},/반려견이 다릅니다/],
+ },/PASS_NO_REMAINING/],
+ ['before starts',{start:'2026-11-25'},()=>{},/PASS_BEFORE_START/],
+ ['expired',{expiry:'2026-11-23'},()=>{},/PASS_AFTER_EXPIRY/],
+ ['another dog',{},f=>{f.pass[1]='DOG-OTHER';},/PASS_DOG_MISMATCH/],
  ['changed date',{date:'2026-11-23'},()=>{},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
  ['cancelled reservation',{},f=>{f.booking[5]='예약취소';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
  ['invalid Sheets attendance',{},f=>{f.booking[8]='등원 중';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
  ['unknown product',{product:''},()=>{},/PASS_PRODUCT_UNCONFIRMED/],
  ['unsupported recurring count',{},f=>{f.pass[5]=9;f.pass[7]=9;},/PASS_RECURRING_COUNT_UNCONFIRMED/],
  ['missing balance provenance',{remaining:7},()=>{},/PASS_BALANCE_MISMATCH/],
- ['mismatched booking flag',{},f=>{f.booking[9]='차감';},/변동이력이 불일치/]
+ ['mismatched booking flag',{},f=>{f.booking[9]='차감';},/PASS_DEDUCTION_FLAG_MISMATCH/]
 ]){
  test('attendance survives a rejected ledger validation: '+label,async()=>{
   const f=passFixture(options);
