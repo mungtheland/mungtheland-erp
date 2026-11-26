@@ -1,9 +1,9 @@
 'use strict';
 
 const tables=[
- {key:'bookings',title:'예약·등하원관리',width:10,columns:[[0,2],[4,9]],dates:[1]},
- {key:'passes',title:'이용권관리',width:15,columns:[[0,2],[5,9],[13,14]],dates:[8,9]},
- {key:'history',title:'_이용권변동이력',width:10,columns:[[0,0],[2,9]],dates:[]}
+ {key:'bookings',title:'예약·등하원관리',width:11,columns:[[0,10]],dates:[1],times:[6,7]},
+ {key:'passes',title:'이용권관리',width:15,columns:[[0,14]],dates:[4,8,9]},
+ {key:'history',title:'_이용권변동이력',width:10,columns:[[0,9]],dates:[1]}
 ];
 const column=index=>String.fromCharCode(65+index);
 const a1=(title,start,end,lastRow='')=>`'${title}'!${column(start)}1:${column(end)}${lastRow}`;
@@ -13,6 +13,8 @@ const SHEETS_GRID='spreadsheetId,properties(timeZone),sheets(properties(title,sh
 const DRIVE_META='id,version,mimeType,capabilities(canEdit)';
 const NATIVE_SHEET='application/vnd.google-apps.spreadsheet';
 const SERIAL_EPOCH=Date.UTC(1899,11,30);
+const INTEGRATION_TEST_WORKBOOK_ID='1vNA3CjAbRor3F_qXTqq54XVeMYgACkwsHaVvyjYblTk';
+const INTEGRATION_TEST_VIEWER='mungtheland-v50-reader@mungtheland-guardian-test.iam.gserviceaccount.com';
 const readErrors=new Set(['LEDGER_READ_SCOPE_DENIED','LEDGER_READ_COLUMNS_DENIED','LEDGER_READ_SHAPE_UNVERIFIED',
  'LEDGER_NON_LITERAL_CELL','LEDGER_SNAPSHOT_CHANGED','LEDGER_SNAPSHOT_UNVERIFIED']);
 
@@ -21,8 +23,8 @@ class PassLedgerReadError extends Error {
 }
 const deny=code=>{throw new PassLedgerReadError(code);};
 
-function readLayout(data,workbookId){
- if(data?.spreadsheetId!==workbookId||data.properties?.timeZone!=='Asia/Seoul'||!Array.isArray(data.sheets)||data.sheets.length!==tables.length)
+function readLayout(data,workbookId,timeZone){
+ if(data?.spreadsheetId!==workbookId||data.properties?.timeZone!==timeZone||!Array.isArray(data.sheets)||data.sheets.length!==tables.length)
   deny('LEDGER_READ_SHAPE_UNVERIFIED');
  const result=new Map();
  for(const sheet of data.sheets){
@@ -64,7 +66,7 @@ function projectTable(spec,layout){
   if(!grid||!cols||seen.has(start)||(grid.startRow??0)!==0||!Array.isArray(grid.rowData)||grid.rowData.length<1||
     grid.rowData.length>rowCount)deny('LEDGER_READ_SHAPE_UNVERIFIED');
   seen.add(start);
-  for(const [i,raw] of grid.rowData.entries()){
+ for(const [i,raw] of grid.rowData.entries()){
    const cells=raw?.values??[];
    if(!Array.isArray(cells)||cells.length>cols[1]-start+1)deny('LEDGER_READ_SHAPE_UNVERIFIED');
    const row=(rows[i]??=Array(spec.width).fill(null));
@@ -76,15 +78,24 @@ function projectTable(spec,layout){
   for(const i of spec.dates){
    const value=row[i];
    if(typeof value!=='number')continue;
-   const day=new Date(SERIAL_EPOCH+value*86400000);
-   if(!Number.isSafeInteger(value)||value<1||!Number.isFinite(day.getTime())||day.getUTCFullYear()>9999)
+   const instant=new Date(SERIAL_EPOCH+value*86400000);
+   if(!Number.isFinite(value)||value<1||!Number.isFinite(instant.getTime())||instant.getUTCFullYear()>9999||
+     (spec.key!=='history'&&(!Number.isSafeInteger(value)||instant.toISOString().slice(11,23)!=='00:00:00.000')))
     deny('LEDGER_READ_SHAPE_UNVERIFIED');
-   row[i]=day.toISOString().slice(0,10);
+   row[i]=spec.key==='history'?instant.toISOString():instant.toISOString().slice(0,10);
+  }
+  for(const i of spec.times||[]){
+   const value=row[i];if(typeof value!=='number')continue;
+   if(!Number.isFinite(value)||value<0||value>=1)deny('LEDGER_READ_SHAPE_UNVERIFIED');
+   const seconds=Math.round(value*86400)%86400;
+   row[i]=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   }
   if(spec.key==='history'&&row[8]!=='AUTO_ATTENDANCE'){
    row[8]=null;
    row[9]=null;
   }
+  if(spec.key==='bookings')for(const index of [3,10])row[index]=null;
+  if(spec.key==='passes')for(const index of [3,10,11,12])row[index]=null;
  }
  return {headers,rows:data.filter(row=>row.some(value=>value!==null))};
 }
@@ -92,10 +103,12 @@ function projectTable(spec,layout){
 // The caller supplies owner approval and GETs bound to the independently
 // verified viewer. This factory does not obtain or upgrade any credentials.
 function createPassLedgerReader({environment,workbooks,approval,viewerSubject,getSpreadsheet,getDriveFile,clock=Date.now,maxSnapshotMs=4000}){
- const environments=['production','isolated','synthetic'];
+ const environments=['production','isolated','synthetic','integration-test'];
+ const expectedTimeZone=environment==='integration-test'?'Etc/GMT':'Asia/Seoul';
  const ids=environments.map(key=>workbooks?.[key]);
  const workbookId=ids[environments.indexOf(environment)];
  if(!workbookId||ids.some(id=>typeof id!=='string'||!id.trim())||new Set(ids).size!==ids.length||
+    (environment==='integration-test'&&(workbookId!==INTEGRATION_TEST_WORKBOOK_ID||viewerSubject!==INTEGRATION_TEST_VIEWER))||
     approval?.environment!==environment||approval.workbookId!==workbookId||typeof viewerSubject!=='string'||
     !viewerSubject.trim()||approval.viewerSubject!==viewerSubject||
     !Number.isSafeInteger(approval.expiresAt)||approval.expiresAt<=clock()||
@@ -136,11 +149,11 @@ function createPassLedgerReader({environment,workbooks,approval,viewerSubject,ge
   const version=await verifyVersion();
   checkpoint();
   const meta=await getSpreadsheet({spreadsheetId:workbookId,ranges:[...APPROVAL_RANGES],fields:SHEETS_META},options);
-  const layout=readLayout(meta?.data,workbookId);
+  const layout=readLayout(meta?.data,workbookId,expectedTimeZone);
   const ranges=tables.flatMap(({title,columns})=>columns.map(([start,end])=>a1(title,start,end,layout.get(title).rows)));
   checkpoint();
   const captured=await getSpreadsheet({spreadsheetId:workbookId,ranges,fields:SHEETS_GRID},options);
-  const readback=readLayout(captured?.data,workbookId);
+  const readback=readLayout(captured?.data,workbookId,expectedTimeZone);
   for(const [title,shape] of layout){
    const got=readback.get(title);
    if(got.rows!==shape.rows||got.columns!==shape.columns)deny('LEDGER_SNAPSHOT_CHANGED');
@@ -148,9 +161,9 @@ function createPassLedgerReader({environment,workbooks,approval,viewerSubject,ge
   if(await verifyVersion()!==version)deny('LEDGER_SNAPSHOT_CHANGED');
   const closedAt=checkpoint();
 
-  return {workbookId,complete:true,snapshot:{version,openedAt,closedAt},
+  return {workbookId,complete:true,snapshot:{version,openedAt,closedAt,timeZone:expectedTimeZone},
    ...Object.fromEntries(tables.map(spec=>[spec.key,projectTable(spec,readback.get(spec.title))]))};
  };
 }
 
-module.exports={createPassLedgerReader,PassLedgerReadError,APPROVAL_RANGES};
+module.exports={createPassLedgerReader,PassLedgerReadError,APPROVAL_RANGES,INTEGRATION_TEST_WORKBOOK_ID,INTEGRATION_TEST_VIEWER};

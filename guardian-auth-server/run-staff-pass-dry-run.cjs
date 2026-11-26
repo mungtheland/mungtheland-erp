@@ -12,7 +12,7 @@ function createSyntheticDryRunFixture({projectId='demo-mungtheland-pass'}={}){
   scope:'synthetic-stage50',workbookId:'synthetic-workbook',projectId,
   databaseId:'(default)',region:'asia-northeast3',collection:'attendance_test_v1',
   issuer:'synthetic-issuer',audience:'synthetic-audience',subject:'synthetic-workload',
-  bookingIds:[bookingId],historyColumns:['이력 ID',null,'유형','이용권 ID','예약 ID','증감','이전','이후','운영자','사유'],
+  bookingIds:[bookingId],historyColumns:['이력 ID',null,'처리유형','이용권 ID','예약 ID','변동횟수','변경전 잔여','변경후 잔여','처리자','사유'],
   productKinds:{'PRODUCT-DAY':{kind:'DAY'},...Object.fromEntries([8,12,16,20].map(total=>[
    'PRODUCT-'+total,{kind:'RECURRING',total}
   ]))}
@@ -24,9 +24,9 @@ function createSyntheticDryRunFixture({projectId='demo-mungtheland-pass'}={}){
   document:{bookingId,state:'등원 중',events:[event]}};
  const workbook={
   workbookId:binding.workbookId,complete:true,
-  bookings:{headers:['예약 ID','이용일','반려견 ID',null,'이용권 ID','예약상태','등원시간','하원시간','출석상태','차감상태'],rows:[booking]},
-  passes:{headers:['이용권 ID','반려견 ID','상품 ID',null,null,'총 횟수','사용 횟수','잔여 횟수','시작일','만료일',null,null,null,'결제상태','이용권상태'],rows:[pass]},
-  history:{headers:[...binding.historyColumns],rows:[]}
+  bookings:{headers:['예약 ID','이용일','반려견 ID','반려견명','이용권 ID','예약상태','등원시간','하원시간','출석상태','차감상태','비고'],rows:[booking]},
+  passes:{headers:['이용권 ID','반려견 ID','상품 ID','상품명','구매일','총 횟수','사용 횟수','잔여 횟수','시작일','만료일','판매금액','할인금액','결제금액','결제상태','이용권상태'],rows:[pass]},
+  history:{headers:['이력 ID','처리시각','처리유형','이용권 ID','예약 ID','변동횟수','변경전 잔여','변경후 잔여','처리자','사유'],rows:[]}
  };
  const staffCredential='synthetic-staff-credential-'.repeat(4);
  const serviceCredential='synthetic-service-credential';
@@ -62,7 +62,8 @@ function createSyntheticDryRunFixture({projectId='demo-mungtheland-pass'}={}){
 
 function createSyntheticLedgerOptions(fixture){
  const {workbook,ports:{binding,clock}}=fixture;
- const workbooks={production:'synthetic-unopened-production',isolated:'synthetic-unopened-isolated',synthetic:binding.workbookId};
+ const workbooks={production:'synthetic-unopened-production',isolated:'synthetic-unopened-isolated',synthetic:binding.workbookId,
+  'integration-test':'synthetic-unopened-integration-test'};
  const titles={'예약·등하원관리':'bookings','이용권관리':'passes','_이용권변동이력':'history'};
  const viewerSubject='synthetic-viewer';
  const approval={environment:'synthetic',workbookId:binding.workbookId,viewerSubject,
@@ -84,8 +85,9 @@ function createSyntheticLedgerOptions(fixture){
     const rowCount=Math.max(100,[table.headers,...table.rows].length);
     const sheet={properties:{title,sheetType:'GRID',gridProperties:{rowCount,columnCount:26}}};
     if(grid)sheet.data=ranges.filter(range=>range.startsWith("'"+title+"'!")).map(range=>{
-     const [,start,end]=/!([A-Z])1:([A-Z])\d+$/.exec(range);
-     const startColumn=start.charCodeAt(0)-65,endColumn=end.charCodeAt(0)-65;
+     const [,start,end]=/!([A-Z]+)1:([A-Z]+)\d+$/.exec(range);
+     const col=letters=>[...letters].reduce((sum,char)=>sum*26+char.charCodeAt(0)-64,0)-1;
+     const startColumn=col(start),endColumn=col(end);
      const rowData=[table.headers,...table.rows].map(row=>({values:row.slice(startColumn,endColumn+1).map(pack)}));
      return {startColumn,startRow:0,rowData};
     });

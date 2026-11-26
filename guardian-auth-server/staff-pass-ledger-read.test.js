@@ -2,15 +2,11 @@
 
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {createPassLedgerReader,PassLedgerReadError}=require('./staff-pass-ledger-read');
+const {createPassLedgerReader,PassLedgerReadError,INTEGRATION_TEST_WORKBOOK_ID,INTEGRATION_TEST_VIEWER}=require('./staff-pass-ledger-read');
 const {createPassDeductionDryRun}=require('./staff-pass-dry-run');
 const {createSyntheticDryRunFixture,createSyntheticLedgerOptions}=require('./run-staff-pass-dry-run.cjs');
 
-const ranges=[
- "'예약·등하원관리'!A1:C","'예약·등하원관리'!E1:J",
- "'이용권관리'!A1:C","'이용권관리'!F1:J","'이용권관리'!N1:O",
- "'_이용권변동이력'!A1:A","'_이용권변동이력'!C1:J"
-];
+const ranges=["'예약·등하원관리'!A1:K","'이용권관리'!A1:O","'_이용권변동이력'!A1:J"];
 function setup(){
  const fixture=createSyntheticDryRunFixture();
  const options=createSyntheticLedgerOptions(fixture);
@@ -65,7 +61,7 @@ test('B - Drive must confirm the exact native Sheets file for a non-editor',asyn
  }
 });
 
-test('C - only the seven exact approved column ranges and minimal fields are requested',async()=>{
+test('C - only the three exact integration schema ranges and minimal fields are requested',async()=>{
  const {options,read,requests,target}=setup();
  const snapshot=await read();
  assert.deepEqual(requests.map(call=>call.key),['getDriveFile','getSpreadsheet','getSpreadsheet','getDriveFile']);
@@ -78,12 +74,14 @@ test('C - only the seven exact approved column ranges and minimal fields are req
  assert.ok(requests.every(({transport})=>transport.retry===false));
  assert.equal(snapshot.complete,true);
  assert.equal(snapshot.bookings.rows[0][3],null);
- assert.deepEqual(snapshot.snapshot,{version:'9007199254740993',openedAt:options.clock(),closedAt:options.clock()});
+ assert.equal(snapshot.bookings.rows[0][10],null);
+ assert.equal(snapshot.passes.rows[0][3],null);
+ assert.deepEqual(snapshot.snapshot,{version:'9007199254740993',openedAt:options.clock(),closedAt:options.clock(),timeZone:'Asia/Seoul'});
 });
 
 test('C - a requested range override or broader or incomplete approval is denied before any GET',async()=>{
  const {options,requests,target}=setup();
- for(const selected of [ranges.slice(1),[...ranges,"'고객·반려견관리'!A1:O"],["'예약·등하원관리'!A1:K",...ranges.slice(1)]]){
+ for(const selected of [ranges.slice(1),[...ranges,"'고객·반려견관리'!A1:O"],["'예약·등하원관리'!A1:J",...ranges.slice(1)]]){
   assert.throws(()=>createPassLedgerReader({...options,approval:{...options.approval,ranges:selected}}),{code:'LEDGER_READ_COLUMNS_DENIED'});
  }
  const read=createPassLedgerReader(options);
@@ -104,11 +102,46 @@ test('C - unapproved returned tabs, non-grid sheets and wrong time zone prevent 
  }
 });
 
+test('C - integration workbook requires Etc/GMT metadata and preserves only approved schema',async()=>{
+ const {options,fixture}=setup();
+ const integration={...options,environment:'integration-test',viewerSubject:INTEGRATION_TEST_VIEWER,
+  workbooks:{...options.workbooks,'integration-test':INTEGRATION_TEST_WORKBOOK_ID},
+  approval:{...options.approval,environment:'integration-test',workbookId:INTEGRATION_TEST_WORKBOOK_ID,viewerSubject:INTEGRATION_TEST_VIEWER}};
+ const drive=integration.getDriveFile;
+ integration.getDriveFile=async(...args)=>{const result=await drive(...args);result.data.id=INTEGRATION_TEST_WORKBOOK_ID;return result;};
+ const get=integration.getSpreadsheet;
+ integration.getSpreadsheet=async(args,transport)=>{
+  const result=await get(args,transport);result.data.spreadsheetId=INTEGRATION_TEST_WORKBOOK_ID;
+  result.data.properties.timeZone='Etc/GMT';
+  if(result.data.sheets[2].data){
+   const serial=(Date.parse('2026-11-26T01:30:00Z')-Date.UTC(1899,11,30))/86400000;
+   result.data.sheets[2].data[0].rowData.push({values:[
+    {userEnteredValue:{stringValue:'HISTORY-ID'},effectiveValue:{stringValue:'HISTORY-ID'}},{userEnteredValue:{numberValue:serial},effectiveValue:{numberValue:serial}},
+    {userEnteredValue:{stringValue:'차감'},effectiveValue:{stringValue:'차감'}},{userEnteredValue:{stringValue:'PASS-ID'},effectiveValue:{stringValue:'PASS-ID'}},
+    {userEnteredValue:{stringValue:'RSV-SYNTHETIC-050'},effectiveValue:{stringValue:'RSV-SYNTHETIC-050'}},{userEnteredValue:{numberValue:-1},effectiveValue:{numberValue:-1}},
+    {userEnteredValue:{numberValue:8},effectiveValue:{numberValue:8}},{userEnteredValue:{numberValue:7},effectiveValue:{numberValue:7}},
+    {userEnteredValue:{stringValue:'AUTO_ATTENDANCE'},effectiveValue:{stringValue:'AUTO_ATTENDANCE'}},{userEnteredValue:{stringValue:'synthetic event'},effectiveValue:{stringValue:'synthetic event'}}
+   ]});
+  }
+  return result;
+ };
+ const result=await createPassLedgerReader(integration)({workbookId:INTEGRATION_TEST_WORKBOOK_ID,bookingId:fixture.booking[0]});
+ assert.equal(result.snapshot.timeZone,'Etc/GMT');
+ assert.equal(result.bookings.headers[3],'반려견명');
+ assert.equal(result.history.headers[1],'처리시각');
+ assert.equal(result.history.rows[0][1],'2026-11-26T01:30:00.000Z');
+ const wrongFile={...integration,workbooks:{...integration.workbooks,'integration-test':'wrong-test-id'}};
+ assert.throws(()=>createPassLedgerReader(wrongFile),{code:'LEDGER_READ_SCOPE_DENIED'});
+ const wrongViewer={...integration,viewerSubject:'another-reader'};
+ assert.throws(()=>createPassLedgerReader(wrongViewer),{code:'LEDGER_READ_SCOPE_DENIED'});
+});
+
 test('C - server cannot smuggle an unrequested column in a returned GridData segment',async()=>{
  const {options,read}=setup(),get=options.getSpreadsheet;
  options.getSpreadsheet=async(...args)=>{
   const response=await get(...args);
-  if(response.data.sheets[0].data)response.data.sheets[0].data[0].rowData[1].values.push({userEnteredValue:{stringValue:'PRIVATE'}});
+  if(response.data.sheets[0].data)response.data.sheets[0].data[0].rowData[1].values.push(
+   {userEnteredValue:{stringValue:'PRIVATE'}},{userEnteredValue:{stringValue:'OUTSIDE'}});
   return response;
  };
  await assert.rejects(read(),{code:'LEDGER_READ_SHAPE_UNVERIFIED'});

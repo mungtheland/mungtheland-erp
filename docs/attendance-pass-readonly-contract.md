@@ -48,12 +48,20 @@
 
 권장안은 **현 설정에서 실행 BLOCKED**입니다. 저장소에는 격리 clasp 대상과 Apps Script 소스만 확인됐고, 활성 CLI 사용자 및 기본 사용자 ADC는 운영 원장 소유자 승인이나 운영 실행 주체의 증거와 연결되지 않았습니다. 두 서비스의 실제 주체·배포·호출 경로와 Apps Script에서 중계로의 네트워크 및 허용 대상을 확인해야 합니다. 외부 진단 엔드포인트 공개, 새 권한 요청, 기존 IAM·OAuth·배포 수정은 수행하지 않았습니다.
 
+## 52단계 통합 테스트 원장 진단
+
+52단계는 사용자가 지정한 통합 테스트 파일과 reader 서비스 계정 권한을 코드 범위에 결합했습니다. Codex 실행 환경은 해당 reader 신원으로 인증된 상태가 아니므로 실제 Google API 요청을 실행하지 않았습니다. 기본 사용자 ADC나 파일 소유자 계정을 reader 서비스 계정으로 간주하지 않습니다. 실데이터 검사 결과는 BLOCKED이며 이 단계의 진단 결과는 합성 데이터에만 적용됩니다.
+
+읽기 어댑터는 예약·등하원관리, 이용권관리, _이용권변동이력의 명시된 전체 열만 읽습니다. 반려견명, 비고, 상품명, 금액, 처리자 및 사유 값은 어댑터 반환 전에 제거합니다. 정합성 분석은 개인별 값 대신 A–T 코드와 오류 건수만 반환하며 쓰기 포트를 갖지 않습니다. 테스트 파일 `Etc/GMT` 시간대를 검증하고, 달력일과 변동 시각을 별도 규칙으로 정규화합니다.
+
+A–S는 내부 ID, 예약·이용권·반려견 연결, 명시적 상품 카탈로그, 잔여 산식, 결제와 이용기간, 이력 중복·연속성, 수동·자동 충돌 및 예약·출석·차감 상태를 집계합니다. 실제 상품 ID와 8·12·16·20회 매핑은 확인하지 않았고 추정하지 않습니다. T는 Firestore와의 대조입니다. 이번 단계에서 허용된 클라우드 조회는 테스트 Sheets뿐이라 Firestore는 읽지 않았으며 실데이터 T는 BLOCKED입니다.
+
 ## 51단계 읽기 어댑터
 
 `staff-pass-ledger-read.js`는 독립적으로 확인된 읽기 주체에 결합한 `drive.files.get`과 `sheets.spreadsheets.get`만 주입받습니다. 승인 기록에는 운영·격리·합성 환경별로 서로 다른 파일 ID, 읽기 주체, 예약 허용 목록, 범위와 만료가 필요합니다. 요청이 임의 원장이나 열을 지정하면 API에 전달하기 전에 차단합니다. 실환경에서 이 어댑터를 쓰려면 해당 소유자가 이미 승인한 뷰어와 Drive 버전 메타데이터, Sheets 읽기 범위가 필요합니다. [Drive 읽기 전용 메타데이터](https://developers.google.com/workspace/drive/api/guides/file-metadata)
 
-- 승인할 범위는 데이터 계약 표의 7개 연속 열 구간입니다. 예약 `A1:C`, `E1:J`, 이용권 `A1:C`, `F1:J`, `N1:O`, 이력 `A1:A`, `C1:J`의 전체 행이 필요합니다. 소유자 승인이 일부 행에만 해당하면 이 방식으로는 전체 행을 읽지 않습니다. 예약 허용 목록은 조회한 데이터 중 진단할 예약을 제한하며 API에서 전체 열을 읽는 범위를 대신하지 않습니다.
-- Drive에서 파일 ID, 스프레드시트 유형, 버전 및 편집 가능 여부를 확인하고, Sheets에서 서울 시간대와 허용된 GRID 시트의 크기를 먼저 읽습니다. 크기를 바탕으로 7개 범위의 전체 행을 한 번에 읽고, 범위 오프셋과 시트 크기 및 Drive 버전을 다시 확인합니다. 제한 시간을 넘거나, 버전 또는 크기가 달라지거나, 선택된 값이 수식·계산 결과인 경우 판정을 폐기합니다. Firestore도 원장 조회 전후 문서 버전을 대조합니다. 이 방법은 관측 구간의 일관성을 확인합니다. 두 시스템에 걸쳐 쓰기 잠금을 잡지는 않습니다. [Drive 파일 버전](https://developers.google.com/workspace/drive/api/reference/rest/v3/files) · [Sheets 범위와 필드 마스크](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get) · [Sheets 원시 값과 계산 값](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/cells)
+- 51단계의 최소 열 집합은 합성·기존 계약을 위한 기준이었습니다. 52단계 통합 테스트 원장 검증에서 전체 스키마 헤더를 검사하기 위해 예약 `A1:K`, 이용권 `A1:O`, 이력 `A1:J` 세 범위로 고정했습니다. 승인 행 범위는 각 시트의 전체 그리드 행을 포함해야 합니다. 예약 허용 목록은 진단 대상을 제한하며 API에서 전체 행 범위를 읽는 권한을 대신하지 않습니다.
+- Drive에서 파일 ID, 스프레드시트 유형, 버전 및 편집 가능 여부를 확인하고 Sheets에서 환경별로 고정된 시간대와 세 GRID 시트를 확인합니다. 통합 테스트 파일은 확인된 `Etc/GMT` 메타데이터를 요구합니다. 달력 날짜 값은 ISO 날짜로 보존하고, 변동이력 시각은 GMT 기준 ISO 시각으로 변환합니다. 날짜 비교는 별도 정책에 따라 Asia/Seoul 달력일로 처리합니다. 고정 범위의 그리드 값은 한 번 읽은 뒤 시트 크기와 Drive 버전을 다시 확인합니다. 제한 시간 초과, 버전·크기 변경, 수식·계산 결과는 판정을 폐기합니다. [Drive 파일 버전](https://developers.google.com/workspace/drive/api/reference/rest/v3/files) · [Sheets 범위와 필드 마스크](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get) · [Sheets 원시 값과 계산 값](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/cells)
 - 진단은 승인된 상품 ID가 가리키는 정확한 8·12·16·20회 값을 사용합니다. 상품 분류나 회차가 불명확하면 검토가 필요합니다. 수동 감사 행의 담당자·사유는 조회 결과에서 제외하고, 자동 차감 이력은 예약과 연결된 작업 증명만 대조에 사용합니다. 외부 결과는 고정 상태와 사유 코드, 필요 시 회차 예측만 반환합니다.
 
 ## 실행 가능한 합성 진단
