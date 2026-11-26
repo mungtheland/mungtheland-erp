@@ -56,7 +56,7 @@ function analyzePassLedger({workbook,productCatalog,firestoreEvidence,source='sy
   if(passId){const list=passHistory.get(passId)||[];list.push(row);passHistory.set(passId,list);}
  }
  let missingPass=0,dogMismatch=0;
- for(const booking of bookings){const passId=text(booking[4]);if(passId&&!passById.has(passId))missingPass++;
+ for(const booking of bookings){const passId=text(booking[4]);if(!passId||!passById.has(passId))missingPass++;
   else if(passId&&text(booking[2])&&text(booking[2])!==text(passById.get(passId)[1]))dogMismatch++;}
  set('D',missingPass?'FAIL':'PASS',missingPass);set('E',dogMismatch?'FAIL':'PASS',dogMismatch);
  let skuMismatch=0,unknownSku=0;
@@ -65,7 +65,7 @@ function analyzePassLedger({workbook,productCatalog,firestoreEvidence,source='sy
   if(definition.kind==='RECURRING'&&(![8,12,16,20].includes(definition.total)||pass[5]!==definition.total))skuMismatch++;
   if(definition.kind==='DAY'&&pass[5]!==1)skuMismatch++;
  }
- set('F',!productCatalog?'BLOCKED':skuMismatch||unknownSku?'FAIL':'PASS',skuMismatch+unknownSku);
+ set('F',!productCatalog||unknownSku?'BLOCKED':skuMismatch?'FAIL':'PASS',skuMismatch+unknownSku);
  let arithmetic=0,negative=0;
  for(const pass of passes){const [total,used,remaining]=pass.slice(5,8);
   if(![total,used,remaining].every(Number.isSafeInteger)||total!==used+remaining)arithmetic++;
@@ -101,7 +101,7 @@ function analyzePassLedger({workbook,productCatalog,firestoreEvidence,source='sy
    if(pass[7]!==pass[5]+net||pass[6]!==-net)historyBalance++;}
  }
  set('M',continuity?'FAIL':'PASS',continuity);set('N',historyBalance?'FAIL':'PASS',historyBalance);
- let cancelledUse=0,unconfirmedUse=0,dayUse=0,flagMismatch=0,confirmedUnsettled=0;
+ let cancelledUse=0,unconfirmedUse=0,dayUse=0,flagMismatch=0,confirmedUnsettled=0,unknownDayType=0;
  for(const booking of bookings){
   const id=text(booking[0]),rows=bookingHistory.get(id)||[],charges=rows.filter(row=>text(row[2])==='차감');
   const cancelled=['예약취소','취소','취소완료'].includes(text(booking[5]));
@@ -113,12 +113,15 @@ function analyzePassLedger({workbook,productCatalog,firestoreEvidence,source='sy
   const net=rows.reduce((sum,row)=>sum+(text(row[2])==='차감'?-1:text(row[2])==='복구'?1:0),0);
   const flag=text(booking[9])||'미차감',expected=net<0?'차감':net>0?'복구':'미차감';
   if(flag!==expected)flagMismatch++;
-  const kind=pass&&productCatalog?.[text(pass[2])]?.kind;
-  if(confirmed&&kind!=='DAY'&&(net!==-1||flag!=='차감'))confirmedUnsettled++;
+  const definition=pass&&productCatalog?.[text(pass[2])],kind=definition?.kind;
+  if(confirmed&&!definition)unknownDayType++;
+  if(confirmed&&kind!=='DAY'&&definition&&(net!==-1||flag!=='차감'))confirmedUnsettled++;
  }
  set('O',cancelledUse?'FAIL':'PASS',cancelledUse);set('P',unconfirmedUse?'FAIL':'PASS',unconfirmedUse);
- set('Q',dayUse?'FAIL':'PASS',dayUse);set('R',flagMismatch?'FAIL':'PASS',flagMismatch);
- set('S',confirmedUnsettled?'FAIL':'PASS',confirmedUnsettled);
+ const unknownProductRows=passes.filter(pass=>!productCatalog?.[text(pass[2])]).length;
+ set('Q',!productCatalog||unknownProductRows?'BLOCKED':dayUse?'FAIL':'PASS',unknownProductRows+dayUse);
+ set('R',flagMismatch?'FAIL':'PASS',flagMismatch);
+ set('S',unknownDayType?'BLOCKED':confirmedUnsettled?'FAIL':'PASS',unknownDayType+confirmedUnsettled);
  if(source==='synthetic'&&Array.isArray(firestoreEvidence))set('T','NOT_APPLICABLE');
  else set('T','BLOCKED');
  return safeResult(results,rowCounts,source);

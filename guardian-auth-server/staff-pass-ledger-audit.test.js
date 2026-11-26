@@ -32,6 +32,7 @@ test('B - duplicate pass IDs and C - duplicate history IDs are counted',()=>{
 test('D - missing linked pass and E - cross-dog link are separate checks',()=>{
  const f=fixture();f.booking[4]='PASS-MISSING';
  assert.equal(check(run(f),'D').issues,1);
+ f.booking[4]='';assert.equal(check(run(f),'D').issues,1);
  f.booking[4]=f.pass[0];f.pass[1]='DOG-OTHER';assert.equal(check(run(f),'E').issues,1);
 });
 test('F - explicit SKU map verifies 8/12/16/20 and unknown mappings block or fail closed',()=>{
@@ -40,7 +41,12 @@ test('F - explicit SKU map verifies 8/12/16/20 and unknown mappings block or fai
  for(const [id,total] of [['P8',8],['P12',12],['P16',16],['P20',20]]){
   f.pass[2]=id;f.pass[5]=total;f.pass[7]=total;assert.equal(check(run(f),'F').status,'PASS');
  }
- f.pass[2]='UNKNOWN';assert.equal(check(run(f),'F').status,'FAIL');
+ f.pass[2]='UNKNOWN';assert.equal(check(run(f),'F').status,'BLOCKED');
+});
+test('unknown catalog blocks SKU, day-pass and confirmed attendance conclusions',()=>{
+ const f=fixture();f.pass[2]='TEST-ONLY';f.booking[8]='등원 중';f.booking[6]='10:00';
+ const r=run(f,{productCatalog:{}});
+ assert.equal(check(r,'F').status,'BLOCKED');assert.equal(check(r,'Q').status,'BLOCKED');assert.equal(check(r,'S').status,'BLOCKED');
 });
 test('G - used plus remaining must equal total and H - remaining cannot be negative',()=>{
  const f=fixture();f.pass[7]=7;assert.equal(check(run(f),'G').status,'FAIL');
