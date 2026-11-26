@@ -6,7 +6,7 @@ const {createPassLedgerReader,PassLedgerReadError,INTEGRATION_TEST_WORKBOOK_ID,I
 const {createPassDeductionDryRun}=require('./staff-pass-dry-run');
 const {createSyntheticDryRunFixture,createSyntheticLedgerOptions}=require('./run-staff-pass-dry-run.cjs');
 
-const ranges=["'예약·등하원관리'!A1:K","'이용권관리'!A1:O","'_이용권변동이력'!A1:J"];
+const ranges=["'예약·등하원관리'!A:K","'이용권관리'!A:O","'_이용권변동이력'!A:J"];
 function setup(){
  const fixture=createSyntheticDryRunFixture();
  const options=createSyntheticLedgerOptions(fixture);
@@ -67,7 +67,7 @@ test('C - only the three exact integration schema ranges and minimal fields are 
  assert.deepEqual(requests.map(call=>call.key),['getDriveFile','getSpreadsheet','getSpreadsheet','getDriveFile']);
  const [,metadata,grid]=requests;
  assert.deepEqual(metadata.args.ranges,ranges);
- assert.deepEqual(grid.args.ranges,ranges.map(range=>range+'100'));
+ assert.deepEqual(grid.args.ranges,["'예약·등하원관리'!A1:K100","'이용권관리'!A1:O100","'_이용권변동이력'!A1:J100"]);
  assert.equal(grid.args.spreadsheetId,target.workbookId);
  assert.equal(metadata.args.fields.includes('rowData'),false);
  assert.match(grid.args.fields,/rowData\(values\(userEnteredValue,effectiveValue\)\)/);
@@ -77,6 +77,8 @@ test('C - only the three exact integration schema ranges and minimal fields are 
  assert.equal(snapshot.bookings.rows[0][10],null);
  assert.equal(snapshot.passes.rows[0][3],null);
  assert.deepEqual(snapshot.snapshot,{version:'9007199254740993',openedAt:options.clock(),closedAt:options.clock(),timeZone:'Asia/Seoul'});
+ assert.equal(metadata.args.ranges.some(range=>/!A1:[A-Z]+$/.test(range)),false);
+ assert.equal((grid.args.fields.match(/\(/g)||[]).length,(grid.args.fields.match(/\)/g)||[]).length);
 });
 
 test('C - a requested range override or broader or incomplete approval is denied before any GET',async()=>{
@@ -194,6 +196,24 @@ test('E - numeric Sheets dates are interpreted as Seoul calendar days',async()=>
  fixture.pass[8]=serial('2026-11-26');
  fixture.pass[9]=serial('2026-11-26');
  assert.equal((await run()).status,'ELIGIBLE');
+});
+
+test('E - DATE_TIME purchase dates and same-day booking date-times normalize without exposing names',async()=>{
+ const {options,fixture,target}=setup();
+ const serial=iso=>(Date.parse(iso+'Z')-Date.UTC(1899,11,30))/86400000;
+ fixture.booking[6]=serial('2026-11-26T09:30:00');
+ fixture.pass[4]=serial('2026-11-20T14:15:00');
+ const snapshot=await createPassLedgerReader(options)(target);
+ assert.equal(snapshot.bookings.rows[0][6],'09:30:00');
+ assert.equal(snapshot.passes.rows[0][4],'2026-11-20');
+ assert.equal(snapshot.bookings.rows[0][3],null);
+});
+
+test('E - a booking DATE_TIME on a different day is rejected',async()=>{
+ const {options,fixture,target}=setup();
+ const serial=iso=>(Date.parse(iso+'Z')-Date.UTC(1899,11,30))/86400000;
+ fixture.booking[6]=serial('2026-11-27T09:30:00');
+ await assert.rejects(createPassLedgerReader(options)(target),{code:'LEDGER_READ_SHAPE_UNVERIFIED'});
 });
 
 test('K - a rejected service principal cannot reach the Sheets or Firestore readers',async()=>{

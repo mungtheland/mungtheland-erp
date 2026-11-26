@@ -2,14 +2,17 @@
 
 const tables=[
  {key:'bookings',title:'예약·등하원관리',width:11,columns:[[0,10]],dates:[1],times:[6,7]},
- {key:'passes',title:'이용권관리',width:15,columns:[[0,14]],dates:[4,8,9]},
+ {key:'passes',title:'이용권관리',width:15,columns:[[0,14]],dates:[4,8,9],dateTimes:[4]},
  {key:'history',title:'_이용권변동이력',width:10,columns:[[0,9]],dates:[1]}
 ];
 const column=index=>String.fromCharCode(65+index);
-const a1=(title,start,end,lastRow='')=>`'${title}'!${column(start)}1:${column(end)}${lastRow}`;
+const a1=(title,start,end,lastRow)=>{
+ const range=lastRow===undefined?`${column(start)}:${column(end)}`:`${column(start)}1:${column(end)}${lastRow}`;
+ return `'${title}'!${range}`;
+};
 const APPROVAL_RANGES=Object.freeze(tables.flatMap(({title,columns})=>columns.map(([start,end])=>a1(title,start,end))));
 const SHEETS_META='spreadsheetId,properties(timeZone),sheets(properties(title,sheetType,gridProperties(rowCount,columnCount)))';
-const SHEETS_GRID='spreadsheetId,properties(timeZone),sheets(properties(title,sheetType,gridProperties(rowCount,columnCount)),data(startRow,startColumn,rowData(values(userEnteredValue,effectiveValue)))';
+const SHEETS_GRID='spreadsheetId,properties(timeZone),sheets(properties(title,sheetType,gridProperties(rowCount,columnCount)),data(startRow,startColumn,rowData(values(userEnteredValue,effectiveValue))))';
 const DRIVE_META='id,version,mimeType,capabilities(canEdit)';
 const NATIVE_SHEET='application/vnd.google-apps.spreadsheet';
 const SERIAL_EPOCH=Date.UTC(1899,11,30);
@@ -79,15 +82,24 @@ function projectTable(spec,layout){
    const value=row[i];
    if(typeof value!=='number')continue;
    const instant=new Date(SERIAL_EPOCH+value*86400000);
+   const allowDateTime=spec.key==='history'||spec.dateTimes?.includes(i);
    if(!Number.isFinite(value)||value<1||!Number.isFinite(instant.getTime())||instant.getUTCFullYear()>9999||
-     (spec.key!=='history'&&(!Number.isSafeInteger(value)||instant.toISOString().slice(11,23)!=='00:00:00.000')))
+     (!allowDateTime&&(!Number.isSafeInteger(value)||instant.toISOString().slice(11,23)!=='00:00:00.000')))
     deny('LEDGER_READ_SHAPE_UNVERIFIED');
    row[i]=spec.key==='history'?instant.toISOString():instant.toISOString().slice(0,10);
   }
   for(const i of spec.times||[]){
    const value=row[i];if(typeof value!=='number')continue;
-   if(!Number.isFinite(value)||value<0||value>=1)deny('LEDGER_READ_SHAPE_UNVERIFIED');
-   const seconds=Math.round(value*86400)%86400;
+   if(!Number.isFinite(value)||value<0)deny('LEDGER_READ_SHAPE_UNVERIFIED');
+   let fraction=value;
+   if(value>=1){
+    const day=Math.floor(value),dayInstant=new Date(SERIAL_EPOCH+day*86400000);
+    if(spec.key!=='bookings'||!Number.isFinite(dayInstant.getTime())||dayInstant.toISOString().slice(0,10)!==row[1])
+     deny('LEDGER_READ_SHAPE_UNVERIFIED');
+    fraction=value-day;
+   }
+   if(fraction>=1)deny('LEDGER_READ_SHAPE_UNVERIFIED');
+   const seconds=Math.round(fraction*86400)%86400;
    row[i]=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   }
   if(spec.key==='history'&&row[8]!=='AUTO_ATTENDANCE'){
