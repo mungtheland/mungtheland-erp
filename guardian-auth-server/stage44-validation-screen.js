@@ -9,7 +9,7 @@ const html=`<!doctype html>
 <form id="mapping">
   <label>기존 직원 이메일 또는 UID <input id="identifier" required autocomplete="off"></label>
   <label>승인된 직원 ID <input id="staff" required autocomplete="off"></label>
-  <button>계정 확인</button>
+  <button id="prepare-button" type="submit">계정 확인</button>
 </form>
 <form id="login" hidden>
   <label>Firebase 비밀번호 <input id="password" type="password" required autocomplete="off"></label>
@@ -32,6 +32,9 @@ const post=(path,options={})=>fetch(path,{
 let email;
 field('mapping').onsubmit=async event=>{
   event.preventDefault();
+  const button=field('prepare-button');
+  if(button.disabled)return;
+  button.disabled=true;
   try{
     const response=await post('/prepare',{
       headers:{'Content-Type':'application/json'},
@@ -44,6 +47,7 @@ field('mapping').onsubmit=async event=>{
     field('login').hidden=false;
     show('계정 확인 완료. 기존 비밀번호를 입력하세요.');
   }catch{show('계정 확인 요청 실패');}
+  finally{button.disabled=false;}
 };
 field('login').onsubmit=async event=>{
   event.preventDefault();
@@ -66,6 +70,7 @@ function createStage44ValidationScreen({firebaseConfig,origin,prepare,authentica
   const nonce=randomBytes(24).toString('hex');
   const client=clientScript(firebaseConfig,nonce);
   const host=new URL(origin).host;
+  let preparation='IDLE';
   let started=false;
   return async(req,res)=>{
     const send=(status,type,body)=>{
@@ -76,7 +81,11 @@ function createStage44ValidationScreen({firebaseConfig,origin,prepare,authentica
       res.end(body);
     };
     const json=(status,body)=>send(status,'application/json; charset=utf-8',JSON.stringify(body));
-    const reject=(status,code)=>{log({status,code});json(status,{code});};
+    const reject=(status,code,publicCode=code)=>{log({status,code});json(status,{code:publicCode});};
+    const failPreparation=(code,publicCode='PREPARE_FAILED')=>{
+      preparation='FAILED';
+      return reject(400,code,publicCode);
+    };
     if(req.headers.host!==host)return reject(403,'HOST_MISMATCH');
     if(req.method==='GET'&&req.url==='/')return send(200,'text/html; charset=utf-8',html);
     if(req.method==='GET'&&req.url==='/client.js')return send(200,'text/javascript; charset=utf-8',client);
@@ -84,15 +93,28 @@ function createStage44ValidationScreen({firebaseConfig,origin,prepare,authentica
     if(req.headers.origin!==origin)return reject(403,'ORIGIN_MISMATCH');
     if(req.headers['x-erp-nonce']!==nonce)return reject(403,'CONFIRMATION_MISMATCH');
     if(req.url==='/prepare'){
+      if(preparation==='PREPARING')return reject(409,'PREPARE_IN_PROGRESS');
+      if(preparation==='PREPARED')return reject(409,'PREPARE_ALREADY_READY');
+      if(preparation==='FAILED')return reject(409,'PREPARE_SESSION_FAILED');
+      preparation='PREPARING';
+      let input;
       try{
         let body='';
         for await(const bytes of req){
           body+=bytes;
-          if(body.length>2048)return reject(400,'INVALID_PREPARE_INPUT');
+          if(body.length>2048)return failPreparation('INVALID_PREPARE_INPUT','INVALID_PREPARE_INPUT');
         }
-        return json(200,{email:await prepare(JSON.parse(body))});
-      }catch{return reject(400,'PREPARE_FAILED');}
+        input=JSON.parse(body);
+      }catch{return failPreparation('PREPARE_BODY_FAILED');}
+      let email;
+      try{
+        email=await prepare(input);
+        if(typeof email!=='string'||!email.trim())throw Error('Prepared email missing');
+      }catch{return failPreparation('PREPARE_CALLBACK_FAILED');}
+      preparation='PREPARED';
+      return json(200,{email});
     }
+    if(preparation!=='PREPARED')return reject(409,'PREPARE_REQUIRED');
     if(started)return reject(409,'RUN_ALREADY_STARTED');
     const bearer=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||'');
     if(!bearer)return reject(401,'AUTH_REQUIRED');
