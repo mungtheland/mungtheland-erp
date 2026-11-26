@@ -37,8 +37,18 @@ function mdPassAdjust_(data){
     const expiry=p[9] instanceof Date?Utilities.formatDate(p[9],'Asia/Seoul','yyyy-MM-dd'):String(p[9]||'').slice(0,10);
     const today=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd');
     const ledger=mdSheet_('_이용권변동이력');
-    const history=ledger.getLastRow()>1?ledger.getRange(2,1,ledger.getLastRow()-1,10).getDisplayValues().filter(r=>r[3]===passId&&r[4]===bookingId):[];
-    const net=history.reduce((n,r)=>n+(r[2]==='차감'?1:r[2]==='복구'?-1:0),0);
+    const lastHistoryRow=ledger.getLastRow();
+    const history=lastHistoryRow>1?ledger.getRange(2,3,lastHistoryRow-1,3).getDisplayValues():[];
+    const netByPass=new Map();
+    for(const [action,historyPassId,historyBookingId] of history){
+      if(historyBookingId!==bookingId)continue;
+      const delta=action==='차감'?1:action==='복구'?-1:0;
+      netByPass.set(historyPassId,(netByPass.get(historyPassId)||0)+delta);
+    }
+    for(const [historyPassId,netChange] of netByPass){
+      if(historyPassId!==passId&&netChange!==0)throw Error('같은 예약에 다른 이용권의 변동이력이 남아 있습니다. 관리자 점검이 필요합니다.');
+    }
+    const net=netByPass.get(passId)||0;
     if(net<0||net>1)throw Error('차감 이력 불일치: 수동 점검이 필요합니다.');
     if(type==='차감'){
       if(linked&&linked!==passId)throw Error('다른 이용권이 연결된 예약입니다.');

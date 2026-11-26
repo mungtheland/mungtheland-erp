@@ -97,10 +97,18 @@ function mdCreateBooking(data){
       if(values.some(r=>{const saved=r[1];const normalized=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved:/^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.?$/.test(saved)?saved.replace(/\s/g,'').replace(/\.$/,'').split('.').map((v,i)=>i?String(v).padStart(2,'0'):v).join('-'):saved;return normalized===date&&r[2]===dogId&&!['취소','예약취소'].includes(r[5]);}))
         throw Error('동일 반려견의 해당 날짜 예약이 이미 존재합니다.');
     }
+    const passId=String(data.passId||'').trim();
+    if(passId){
+      const passes=mdSheet_('이용권관리'),last=passes.getLastRow();
+      const matches=last>1?passes.getRange(2,1,last-1,2).getDisplayValues().filter(row=>row[0]===passId):[];
+      if(!matches.length)throw Error('연결할 이용권을 찾을 수 없습니다.');
+      if(matches.length>1)throw Error('연결할 이용권 ID가 중복되어 예약을 중단했습니다.');
+      if(matches[0][1]!==dogId)throw Error('예약과 이용권의 반려견이 다릅니다.');
+    }
     const bookingId=mdId_('RSV');
     mdAppend_('예약·등하원관리',{
       '예약 ID':bookingId,'이용일':date,'반려견 ID':dogId,'반려견명':dogName,
-      '이용권 ID':data.passId||'','예약상태':'예약','출석상태':'미등원','차감상태':'미차감',
+      '이용권 ID':passId,'예약상태':'예약','출석상태':'미등원','차감상태':'미차감',
       '비고':data.notes||''
     });
     return {bookingId:bookingId,dogId:dogId,date:date};

@@ -1,5 +1,6 @@
 // Isolated in-memory regression: never opens or writes the production spreadsheet.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const test=require('node:test');
 const sheets=new Map();
 const names=['고객·반려견관리','예약·등하원관리','이용권관리','_이용권변동이력'];
 for(const name of names)sheets.set(name,[]);
@@ -17,7 +18,12 @@ function sheet(name){const rows=sheets.get(name);if(!rows)throw Error(name);retu
 }};
 let seq=0;const context={Date,Number,String,Boolean,Object,Array,Math,JSON,Error,Logger:{log(){}},SpreadsheetApp:{flush(){}},Session:{getEffectiveUser:()=>({getEmail:()=> 'test@example.invalid'})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Utilities:{formatDate:(d,tz,fmt)=>{const x=new Date(d);return fmt==='yyyyMMdd'?x.toISOString().slice(0,10).replace(/-/g,''):x.toISOString().slice(0,10)},getUuid:()=>String(++seq).padStart(8,'0')+'-mock'},mdCheckSetup:()=>({ok:true}),mdSheet_:sheet,mdRequired_:(v,l)=>{if(v===undefined||v===null||String(v).trim()==='')throw Error(l);return String(v).trim()},mdId_:prefix=>prefix+'-TEST-'+(++seq),mdFindById_:(s,id)=>{const v=s.getRange(1,1,s.getLastRow(),1).getValues();return v.findIndex((r,i)=>i>0&&r[0]===id)+1||-1},mdAppend_:(name,record)=>{sheet(name).appendRow(headers[name].map(h=>record[h]??''));return record[headers[name][0]]}};
 vm.createContext(context);
-for(const p of ['src/OperatorAudit.js','src/Passes.js','src/PassAdjust.js'])vm.runInContext(fs.readFileSync(p,'utf8'),context,{filename:p});
+function loadPassFunctions(runtime){
+  for(const filename of ['src/OperatorAudit.js','src/Passes.js','src/PassAdjust.js']){
+    vm.runInContext(fs.readFileSync(filename,'utf8'),runtime,{filename});
+  }
+}
+loadPassFunctions(context);
 sheets.get('고객·반려견관리').push(['DOG-TEST','CUS-TEST','테스트 보호자','000','테스트견']);
 const today=new Date().toISOString().slice(0,10);
 const created=context.mdRegisterPass({dogId:'DOG-TEST',productName:'주 2회',totalCount:3,startDate:'2020-01-01',expiryDate:'2099-12-31',price:60000,discount:0,paymentStatus:'완료',confirmPaid:true});
@@ -71,3 +77,58 @@ assert.equal(passRow[7],0);
 assert.equal(context.mdRestorePass({bookingId:'RSV-LAST',passId:created.passId,reason:'마지막 회차 복구',operator:'신송이'}).remainingCount,1);
 assert.equal(passRow[14],'사용 가능');
 console.log('PASS: in-memory dog/pass/attendance/deduct/restore/history, production untouched');
+
+function addCheckedInBooking(id,date){
+  const row=[id,date,'DOG-TEST','테스트견','','예약',new Date(),'','등원 중','미차감',''];
+  sheets.get('예약·등하원관리').push(row);
+  return row;
+}
+
+const snapshotSheets=()=>JSON.stringify([...sheets]);
+
+test('manual deduction refuses a second pass when booking fields disagree with the ledger',()=>{
+  const otherPass=context.mdRegisterPass({dogId:'DOG-TEST',productName:'테스트',totalCount:8,startDate:'2020-01-01',expiryDate:'2099-12-31',price:0,paymentStatus:'완료',confirmPaid:true});
+  const row=addCheckedInBooking('RSV-LEDGER-CONFLICT',today);
+  context.mdDeductPass({bookingId:row[0],passId:otherPass.passId,operator:'신송이'});
+  // Simulate stale booking fields even though a different pass has a committed deduction.
+  row[4]='';
+  row[9]='미차감';
+  const before=snapshotSheets();
+  assert.throws(()=>context.mdDeductPass({bookingId:row[0],passId:created.passId,operator:'신송이'}),/다른 이용권의 변동이력/);
+  assert.equal(snapshotSheets(),before);
+});
+
+test('manual deduction rejects visits before the pass starts, after expiry, or in the future',()=>{
+  const pass=context.mdRegisterPass({dogId:'DOG-TEST',productName:'테스트 날짜 경계',totalCount:8,startDate:'2020-01-01',expiryDate:'2099-12-31',price:0,paymentStatus:'완료',confirmPaid:true});
+  for(const [id,date,error] of [
+    ['RSV-BEFORE-PASS','2019-12-31',/시작일 이전/],
+    ['RSV-EXPIRED-PASS','2100-01-01',/만료일 이후/],
+    ['RSV-FUTURE-VISIT','2099-12-31',/미래 예약/]
+  ]){
+    addCheckedInBooking(id,date);
+    const before=snapshotSheets();
+    assert.throws(()=>context.mdDeductPass({bookingId:id,passId:pass.passId,operator:'신송이'}),error);
+    assert.equal(snapshotSheets(),before);
+  }
+});
+
+test('a fresh Apps Script context reads the same balance and history from the sheet fixtures',()=>{
+  const pass=context.mdRegisterPass({dogId:'DOG-TEST',productName:'테스트 재실행',totalCount:8,startDate:'2020-01-01',expiryDate:'2099-12-31',price:0,paymentStatus:'완료',confirmPaid:true});
+  const booking=addCheckedInBooking('RSV-RELOAD-PASS',today);
+  const request={bookingId:booking[0],passId:pass.passId,operator:'신송이'};
+  context.mdDeductPass(request);
+  const fresh=vm.createContext({
+    Date,Utilities:context.Utilities,LockService:context.LockService,
+    mdCheckSetup:context.mdCheckSetup,mdSheet_:sheet,mdRequired_:context.mdRequired_
+  });
+  loadPassFunctions(fresh);
+  const [balance]=fresh.mdListPasses('DOG-TEST').filter(row=>row.passId===pass.passId);
+  assert.equal(balance.usedCount,1);
+  assert.equal(balance.remainingCount,7);
+  const history=fresh.mdPassHistory(pass.passId);
+  assert.equal(history.length,1);
+  assert.equal(history[0].bookingId,request.bookingId);
+  const before=snapshotSheets();
+  assert.equal(fresh.mdDeductPass(request).alreadyDeducted,true);
+  assert.equal(snapshotSheets(),before);
+});

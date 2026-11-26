@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+const test=require('node:test');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const bookings=[];
@@ -41,3 +42,35 @@ assert.equal(bookings.length,4);
 assert.equal(lockHeld,false,'all locks must be released');
 assert.equal(lockCalls,8,'valid requests should each acquire lock');
 console.log('PASS: repeat booking submissions, date variants, cancellation and locking');
+
+const passRows=[['PASS-1','D1',8],['PASS-OTHER','D2',8],['PASS-DUPLICATE','D1',8],['PASS-DUPLICATE','D1',8]];
+const passSheet={
+  getLastRow:()=>passRows.length+1,
+  getRange:(row,col,height,width)=>({
+    getDisplayValues:()=>passRows.slice(row-2,row-2+height).map(r=>r.slice(col-1,col-1+width).map(String))
+  })
+};
+const bookingFixtureSheet=ctx.mdSheet_;
+ctx.mdSheet_=name=>name==='이용권관리'?passSheet:bookingFixtureSheet(name);
+
+test('booking connects a valid pass without consuming a use',()=>{
+  const before=structuredClone(passRows);
+  ctx.mdCreateBooking({dogId:'D1',date:'2026-11-04',passId:'PASS-1'});
+  assert.equal(bookings.at(-1)[4],'PASS-1');
+  assert.equal(bookings.at(-1)[9],'미차감');
+  assert.deepEqual(passRows,before);
+  assert.equal(lockHeld,false);
+});
+
+for(const [passId,date,error] of [
+  ['PASS-MISSING','2026-11-05',/이용권을 찾을 수 없습니다/],
+  ['PASS-OTHER','2026-11-06',/반려견이 다릅니다/],
+  ['PASS-DUPLICATE','2026-11-07',/이용권 ID가 중복/]
+]){
+  test(`booking rejects ${passId} without writing`,()=>{
+    const bookingCount=bookings.length;
+    assert.throws(()=>ctx.mdCreateBooking({dogId:'D1',date,passId}),error);
+    assert.equal(bookings.length,bookingCount);
+    assert.equal(lockHeld,false);
+  });
+}
