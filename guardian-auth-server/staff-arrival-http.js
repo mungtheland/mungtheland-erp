@@ -32,7 +32,7 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
     const combined=staffAttendance?await Promise.all(bookings.map(async booking=>{
      const writeScope=attendanceWriteBookingId===undefined?{}:{attendanceWriteAllowed:booking.bookingId===attendanceWriteBookingId};
      try{
-      const {state}=await staffAttendance.get(principal,booking.bookingId);
+      const {state}=await staffAttendance.get(principal,booking.bookingId,{includePass:false});
       return {bookingId:booking.bookingId,...reconcileBookingStatus(booking.status,state),...writeScope};
      }catch(err){
       const invalidRecord=['INVALID_ATTENDANCE_HISTORY','INVALID_ATTENDANCE_DOCUMENT'].includes(err.code)

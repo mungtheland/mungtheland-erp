@@ -89,6 +89,8 @@ async function loadList(){
    const button=document.createElement('button');button.type='button';button.textContent='등원 요청사항 확인';
    button.onclick=()=>{$('booking').value=booking.bookingId;$('load').click();};
    const attendance=document.createElement('p');attendance.className='attendance-detail';attendance.textContent='등하원 시각 조회 중';
+   const passDeduction=document.createElement('p');passDeduction.className='pass-deduction';passDeduction.setAttribute('role','status');passDeduction.hidden=true;
+   const passLabels={PENDING:'등원 후 차감 확인',COMPLETED:'차감 완료',NOT_REQUIRED:'차감 대상 아님',NEEDS_REVIEW:'차감 미완료 또는 결과 불명확 · 관리자 확인 필요'};
    const actionNotice=document.createElement('p');actionNotice.className='attendance-action';actionNotice.setAttribute('role','status');
    const attendanceUrl='/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance';
    const inButton=document.createElement('button'),outButton=document.createElement('button');
@@ -98,6 +100,10 @@ async function loadList(){
     if(!['예약','등원 중','하원 완료'].includes(v?.state)||(v.bookingId!==undefined&&v.bookingId!==booking.bookingId))throw Error('Invalid attendance response');
     attendance.textContent=(v.checkIn?'등원 '+formatKst(v.checkIn.at)+' · '+v.checkIn.staffId:'등원 기록 없음')+
      (v.checkOut?' / 하원 '+formatKst(v.checkOut.at)+' · '+v.checkOut.staffId:'')+(v.temporary?' (임시 기록)':'');
+    const passStatus=Object.hasOwn(passLabels,v.passDeductionStatus)?v.passDeductionStatus:null;
+    passDeduction.dataset.status=passStatus||'';
+    passDeduction.hidden=false;
+    passDeduction.textContent='이용권: '+(passStatus?passLabels[passStatus]:'자동 차감 연동 비활성');
     item.state=v.state;item.attendanceError=false;confirmed=true;
     renderAttendance();applyListFilters();renderSummary();
    };
@@ -107,6 +113,7 @@ async function loadList(){
     const fail=message=>{
      item.state=null;item.attendanceError=true;
      attendance.textContent=message;
+     if(!passDeduction.hidden)passDeduction.textContent='이용권: 상태를 확인할 수 없습니다.';
      renderAttendance();applyListFilters();renderSummary();
     };
     try{
@@ -173,7 +180,7 @@ async function loadList(){
     }
    };
    inButton.onclick=()=>change('check-in');outButton.onclick=()=>change('check-out');
-   card.append(name,info,combinedText,status,reviewText,button,attendance,inButton,outButton,actionNotice,mismatch);root.append(card);
+   card.append(name,info,combinedText,status,reviewText,button,attendance,passDeduction,inButton,outButton,actionNotice,mismatch);root.append(card);
    currentEntries.push(item);
    updates.push(update);
   }

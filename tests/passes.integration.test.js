@@ -17,6 +17,8 @@ function sheet(name){const rows=sheets.get(name);if(!rows)throw Error(name);retu
  appendRow:row=>rows.push(row),deleteRow:r=>rows.splice(r-1,1)
 }};
 let seq=0;const context={Date,Number,String,Boolean,Object,Array,Math,JSON,Error,Logger:{log(){}},SpreadsheetApp:{flush(){}},Session:{getEffectiveUser:()=>({getEmail:()=> 'test@example.invalid'})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},Utilities:{formatDate:(d,tz,fmt)=>{const x=new Date(d);return fmt==='yyyyMMdd'?x.toISOString().slice(0,10).replace(/-/g,''):x.toISOString().slice(0,10)},getUuid:()=>String(++seq).padStart(8,'0')+'-mock'},mdCheckSetup:()=>({ok:true}),mdSheet_:sheet,mdRequired_:(v,l)=>{if(v===undefined||v===null||String(v).trim()==='')throw Error(l);return String(v).trim()},mdId_:prefix=>prefix+'-TEST-'+(++seq),mdFindById_:(s,id)=>{const v=s.getRange(1,1,s.getLastRow(),1).getValues();return v.findIndex((r,i)=>i>0&&r[0]===id)+1||-1},mdAppend_:(name,record)=>{sheet(name).appendRow(headers[name].map(h=>record[h]??''));return record[headers[name][0]]}};
+context.Session.getActiveUser=()=>({getEmail:()=> 'test@example.invalid'});
+context.PropertiesService={getScriptProperties:()=>({getProperty:key=>key==='MD_PASS_CORRECTION_APPROVERS'?'{"test@example.invalid":"PASS-ADMIN-FIXTURE"}':null})};
 vm.createContext(context);
 function loadPassFunctions(runtime){
   for(const filename of ['src/OperatorAudit.js','src/Passes.js','src/PassAdjust.js']){
@@ -37,7 +39,7 @@ assert.equal(context.mdPassHistory(created.passId).length,1);
 const restored=context.mdRestorePass({bookingId:'RSV-TEST',passId:created.passId,reason:'테스트 복구',operator:'신송이'});
 assert.equal(restored.remainingCount,3);
 assert.equal(context.mdPassHistory(created.passId).length,2);
-assert.equal(context.mdPassHistory(created.passId)[0].operator,'신송이');
+assert.equal(context.mdPassHistory(created.passId)[0].operator,'PASS-ADMIN-FIXTURE');
 assert.equal(context.mdPassHistory(created.passId)[0].reason,'테스트 복구');
 assert.equal(context.mdPassHistory(created.passId)[1].operator,'신송이');
 const passRowsBeforeRejected=sheets.get('_이용권변동이력').length;

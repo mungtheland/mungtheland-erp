@@ -14,9 +14,9 @@ function createEmulatorAttendanceStore(db){
  if(process.env.FIRESTORE_EMULATOR_HOST!==EMULATOR_HOST||db?.projectId!==EMULATOR_PROJECT||
   settings?.servicePath!==LOOPBACK||settings.port!==EMULATOR_PORT||settings.ssl!==false)
   throw Error('Isolated attendance emulator only');
- return attendanceStore(db);
+ return attendanceStore(db,{passTracking:true});
 }
-function attendanceStore(db){
+function attendanceStore(db,{passTracking=false}={}){
  const collection=db.collection('attendance_test_v1');
  const doc=id=>{if(!/^RSV-[A-Z0-9-]{1,64}$/.test(id))throw Error('Invalid booking ID');return collection.doc(id);};
  const parse=(snap,id)=>{
@@ -51,6 +51,21 @@ function attendanceStore(db){
    return events;
   });
  }
- return {read,commitTransition};
+ const claimPassDeduction=input=>trackPassDeduction(input,true);
+ const finishPassDeduction=input=>trackPassDeduction(input,false);
+ async function trackPassDeduction({bookingId,eventId,key,status},claim){
+  const ref=doc(bookingId);
+  if(key!==`local-sheets:${bookingId}`||(!claim&&!['COMPLETED','NOT_REQUIRED','NEEDS_REVIEW'].includes(status)))
+   throw Error('Invalid pass deduction tracking request');
+  return db.runTransaction(async tx=>{
+   const data=parse(await tx.get(ref),bookingId);
+   if(data.events[0]?.eventId!==eventId||!data.events.length)return false;
+   const prior=data.passDeduction;
+   if(claim?prior!==undefined:prior?.key!==key||prior.eventId!==eventId||prior.status!=='PENDING')return false;
+   tx.set(ref,{...data,passDeduction:{key,eventId,status:claim?'PENDING':status}});
+   return true;
+  });
+ }
+ return {read,commitTransition,...(passTracking?{claimPassDeduction,finishPassDeduction}:{})};
 }
 module.exports={createFirestoreAttendanceStore,createEmulatorAttendanceStore,EMULATOR_PROJECT,EMULATOR_HOST};

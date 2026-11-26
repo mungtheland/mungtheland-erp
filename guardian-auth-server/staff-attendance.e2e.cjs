@@ -14,6 +14,8 @@ const {EMULATOR_HOST}=require('./firestore-attendance-store');
 const {openStaffBrowser}=require('./staff-attendance.browser.cjs');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {createStaffAttendanceService}=require('./staff-attendance');
+const {createStaffPassDeduction}=require('./staff-pass-deduction');
+const {createPassWorkbookFixture}=require('./attendance-pass-workbook.fixture.cjs');
 
 const date='2026-11-24';
 const keys=['NORMAL','RACE','LOST','TIMEOUT','NETWORK','FAILED'];
@@ -33,8 +35,17 @@ async function serveFixture(){
  assert.throws(()=>net.connect({host:'firestore.googleapis.com',port:443}),/Blocked non-emulator/);
  const client=emulatorClient();
  const html=await readFile(join(__dirname,'staff-local-test.html'));
- let fault,failCommit=false,releaseResponse;
+ let fault,failCommit=false,releaseResponse,releaseRequested=false;
  const posts=[];
+ const ledgerPending=new Map();
+ let ledgerSequence=0;
+ const callLedger=(operation,command)=>new Promise((resolve,reject)=>{
+  const ledgerId=++ledgerSequence;
+  ledgerPending.set(ledgerId,{resolve,reject});
+  process.send({ledgerId,operation,command});
+ });
+ const passDeduction=createStaffPassDeduction({scope:'local-sheets',deduct:command=>callLedger('deduct',command),
+  inspect:command=>callLedger('inspect',command)});
  const store={...client.store,async commitTransition(args){
   if(failCommit){failCommit=false;throw Error('Fixture failure before commit');}
   return client.store.commitTransition(args);
@@ -46,7 +57,8 @@ async function serveFixture(){
   },
   staffArrival:{get:async()=>null},
   bookingRepository:repository,
-  staffAttendance:createStaffAttendanceService({bookingRepository:repository,store})
+  staffAttendance:createStaffAttendanceService({bookingRepository:repository,store,passDeduction,
+   clock:()=>new Date(date+'T02:00:00Z')})
  });
  const server=http.createServer((req,res)=>{
   if(req.method==='GET'&&req.url==='/staff-local-test'){
@@ -63,7 +75,11 @@ async function serveFixture(){
     if(mode==='before-commit')failCommit=true;
     if(mode==='hold-response'){
      const end=res.end.bind(res);
-     res.end=body=>{releaseResponse=()=>end(body);return res;};
+     res.end=body=>{
+      if(releaseRequested){releaseRequested=false;return end(body);}
+      releaseResponse=()=>end(body);
+      return res;
+     };
     }
     if(mode==='lost-response'){
      // Break the response body only after the real handler has completed the commit.
@@ -84,13 +100,21 @@ async function serveFixture(){
  const port=server.address().port;
  assert.ok(validPort(port));
  process.on('message',async message=>{
+  if(message.ledgerId!==undefined){
+   const request=ledgerPending.get(message.ledgerId);
+   ledgerPending.delete(message.ledgerId);
+   if(message.error)request?.reject(Error('Fixture ledger failed'));
+   else request?.resolve(message.data);
+   return;
+  }
   const {id,operation,value}=message;
   try{
    let data;
    if(operation==='fault')fault=value;
    else if(operation==='release-response'){
-    assert.ok(releaseResponse);
-    const release=releaseResponse;releaseResponse=undefined;release();
+    // A listing can observe committed attendance while Sheets is still processing.
+    if(releaseResponse){const release=releaseResponse;releaseResponse=undefined;release();}
+    else releaseRequested=true;
    }
    else if(operation==='posts')data=posts;
    else if(operation==='document'){
@@ -107,7 +131,7 @@ async function serveFixture(){
  process.send({port});
 }
 
-async function startFixture(t,port=0){
+async function startFixture(t,ledger,port=0){
  const child=fork(__filename,['server',String(port)],{
   execArgv:[],env:{...childEnvironment,FIRESTORE_EMULATOR_HOST:EMULATOR_HOST},
   windowsHide:true,stdio:['ignore','ignore','ignore','ipc']
@@ -123,7 +147,17 @@ async function startFixture(t,port=0){
  if(port)assert.equal(bound,port);
  const pending=new Map();
  let sequence=0;
- child.on('message',({id,data,error})=>{
+ child.on('message',async ({id,data,error,ledgerId,operation,command})=>{
+  if(ledgerId!==undefined){
+   let reply;
+   try{
+    assert.ok(['inspect','deduct'].includes(operation));
+    assert.ok(bookings.some(booking=>booking.bookingId===command?.event?.bookingId));
+    reply={ledgerId,data:await ledger[operation](command)};
+   }catch{reply={ledgerId,error:true};}
+   if(child.connected)child.send(reply,()=>{});
+   return;
+  }
   const request=pending.get(id);
   if(!request)return;
   pending.delete(id);
@@ -156,7 +190,11 @@ if(require.main===module&&process.argv[2]==='server'){
    if(dirname(resolve(work))===resolve(tmpdir()))await rm(work,{recursive:true,force:true,maxRetries:4,retryDelay:100});
   });
   emulator=await startEmulator(resolve(java),resolve(jar),work);
-  let fixture=await startFixture(t);
+  const workbook=createPassWorkbookFixture({now:date+'T02:00:00Z'});
+  const passByKey=new Map(keys.map(key=>[key,workbook.seed(fixtureId(key),{product:key==='NETWORK'?'DAILY':'REGULAR'})]));
+  workbook.faults.set(fixtureId('LOST'),'lost');
+  workbook.faults.set(fixtureId('TIMEOUT'),'reject');
+  let fixture=await startFixture(t,workbook.ledger);
   const routeErrors=[];
   let droppedRequestId;
   const browser=await openStaffBrowser(t,fixture.origin,routeErrors,request=>{
@@ -170,6 +208,8 @@ if(require.main===module&&process.argv[2]==='server'){
   const record=(key,server=fixture)=>server.call('document',fixtureId(key));
   const posts=(key,action)=>fixture.call('posts').then(all=>all.filter(post=>post.path===attendUrl(fixtureId(key))+'/'+action));
   const state=(key,value)=>`(${card(fixtureId(key))})?.querySelector('.attendance-state')?.dataset.state===${JSON.stringify(value)}`;
+  const passState=(key,value)=>`(${card(fixtureId(key))})?.querySelector('.pass-deduction')?.dataset.status===${JSON.stringify(value)}`;
+  const charges=key=>workbook.history.slice(1).filter(row=>row[4]===fixtureId(key));
   const checkUi=(...conditions)=>check(conditions.join(' && '),'staff card, notice and summary',300);
   const post=async(key,action,requestId=randomUUID(),bearer=token,server=fixture)=>{
    const res=await fetch(server.origin+attendUrl(fixtureId(key))+'/'+action,{
@@ -196,7 +236,7 @@ if(require.main===module&&process.argv[2]==='server'){
 
   await t.test('UI check-in/out match Firestore; duplicate actions and checkout before check-in are rejected',async()=>{
    const id=fixtureId('NORMAL');
-   await checkUi(buttons(id,false,true),summary(6,6,0,0,0));
+   await checkUi(buttons(id,false,true),summary(6,6,0,0,0),passState('NORMAL','PENDING'));
    assert.equal((await post('NORMAL','check-out')).status,409);
    assert.equal(await record('NORMAL'),null);
    await fixture.call('fault',{path:attendUrl(id)+'/check-in',mode:'hold-response'});
@@ -208,7 +248,7 @@ if(require.main===module&&process.argv[2]==='server'){
    await click('#list');
    await checkUi(state('NORMAL','등원 중'),buttons(id,true,true),summary(6,5,1,0,0));
    await fixture.call('release-response');
-   await checkUi(state('NORMAL','등원 중'),buttons(id,true,false),summary(6,5,1,0,0));
+   await checkUi(state('NORMAL','등원 중'),buttons(id,true,false),summary(6,5,1,0,0),passState('NORMAL','COMPLETED'));
    assert.equal((await assertEvents('NORMAL',['check-in'])).state,'등원 중');
    const requests=await posts('NORMAL','check-in');
    assert.equal(requests.length,1);
@@ -219,15 +259,19 @@ if(require.main===module&&process.argv[2]==='server'){
    await checkUi(state('NORMAL','하원 완료'),buttons(id,true,true),summary(6,5,0,1,0));
    assert.equal((await post('NORMAL','check-out')).status,409);
    assert.equal((await assertEvents('NORMAL',['check-in','check-out'])).state,'하원 완료');
+   assert.equal(charges('NORMAL').length,1);
+   assert.equal(passByKey.get('NORMAL').pass[7],7);
   });
   await t.test('distinct IDs and staff on two HTTP processes produce one Firestore event',async()=>{
-   const second=await startFixture(t);
+   const second=await startFixture(t,workbook.ledger);
    assert.notEqual(second.pid,fixture.pid);
    const results=await Promise.all([post('RACE','check-in'),post('RACE','check-in',randomUUID(),'second-fixture-token',second)]);
    assert.deepEqual(results.map(result=>result.status).sort(),[200,409]);
    const conflict=results.find(result=>result.status===409);
    assert.equal(conflict.body.code,'ATTENDANCE_STATE_CONFLICT');
    assert.equal((await assertEvents('RACE',['check-in'])).state,'등원 중');
+   assert.equal(charges('RACE').length,1);
+   assert.equal(passByKey.get('RACE').pass[7],7);
    await second.stop();
    await click('#list');
    await checkUi(state('RACE','등원 중'),summary(6,4,1,1,0));
@@ -236,10 +280,11 @@ if(require.main===module&&process.argv[2]==='server'){
    const id=fixtureId('LOST');
    await fixture.call('fault',{path:attendUrl(id)+'/check-in',mode:'lost-response'});
    await browserClick('LOST','check-in');
-   await checkUi(state('LOST','등원 중'),notice(id,'처리 결과를 확인할 수 없습니다.'),summary(6,3,2,1,0));
+   await checkUi(state('LOST','등원 중'),notice(id,'처리 결과를 확인할 수 없습니다.'),summary(6,3,2,1,0),passState('LOST','COMPLETED'));
    const [attempt]=await posts('LOST','check-in');
    assert.equal((await post('LOST','check-in',attempt.id)).status,200);
    await assertEvents('LOST',['check-in']);
+   assert.equal(charges('LOST').length,1);
   });
   await t.test('browser POST timeout and network reset re-read state and reuse the request ID on retry',async()=>{
    const timed=fixtureId('TIMEOUT'),network=fixtureId('NETWORK');
@@ -248,7 +293,9 @@ if(require.main===module&&process.argv[2]==='server'){
    await checkUi(buttons(timed,false,true),state('TIMEOUT','예약'),notice(timed,'현재 출석 상태를 다시 조회했습니다.'));
    assert.equal(await record('TIMEOUT'),null);
    await browserClick('TIMEOUT','check-in');
-   await checkUi(state('TIMEOUT','등원 중'));
+   await checkUi(state('TIMEOUT','등원 중'),passState('TIMEOUT','NEEDS_REVIEW'),
+    `(${card(timed)})?.querySelector('.pass-deduction').textContent.includes('관리자 확인 필요')`);
+   assert.equal(charges('TIMEOUT').length,0);
    const timeoutPosts=await posts('TIMEOUT','check-in');
    assert.equal(timeoutPosts.length,2);
    assert.equal(timeoutPosts[0].id,timeoutPosts[1].id);
@@ -257,7 +304,8 @@ if(require.main===module&&process.argv[2]==='server'){
    await checkUi(buttons(network,false,true),state('NETWORK','예약'),notice(network,'현재 출석 상태를 다시 조회했습니다.'));
    assert.equal(await record('NETWORK'),null);
    await browserClick('NETWORK','check-in');
-   await checkUi(state('NETWORK','등원 중'),summary(6,1,4,1,0));
+   await checkUi(state('NETWORK','등원 중'),summary(6,1,4,1,0),passState('NETWORK','NOT_REQUIRED'));
+   assert.equal(charges('NETWORK').length,0);
    const networkPosts=await posts('NETWORK','check-in');
    assert.deepEqual(networkPosts.map(request=>request.id),[droppedRequestId]);
    await assertEvents('NETWORK',['check-in']);
@@ -272,15 +320,19 @@ if(require.main===module&&process.argv[2]==='server'){
   await t.test('new HTTP server process reloads original Firestore records and the UI summary',async()=>{
    const oldPid=fixture.pid,port=fixture.port;
    const original=await Promise.all(keys.map(key=>record(key)));
+   const before=workbook.snapshot(),attempts=workbook.stats().deductCalls;
    await fixture.stop();
-   fixture=await startFixture(t,port);
+   fixture=await startFixture(t,workbook.ledger,port);
    assert.notEqual(fixture.pid,oldPid);
    assert.deepEqual(await Promise.all(keys.map(key=>record(key))),original);
    await click('#list');
-   await checkUi(state('NORMAL','하원 완료'),state('RACE','등원 중'),state('FAILED','예약'),summary(6,1,4,1,0));
+   await checkUi(state('NORMAL','하원 완료'),state('RACE','등원 중'),state('FAILED','예약'),summary(6,1,4,1,0),
+    passState('NORMAL','COMPLETED'),passState('TIMEOUT','NEEDS_REVIEW'));
+   assert.equal(workbook.snapshot(),before);
+   assert.equal(workbook.stats().deductCalls,attempts);
   });
   await t.test('page reload and staff re-login restore saved state with Sheets status shown separately',async()=>{
-   const finalState=()=>checkUi(state('NORMAL','하원 완료'),buttons(fixtureId('NORMAL'),true,true),
+   const finalState=()=>checkUi(state('NORMAL','하원 완료'),buttons(fixtureId('NORMAL'),true,true),passState('NORMAL','COMPLETED'),
     `(${card(fixtureId('NORMAL'))})?.textContent.includes('예약 원장: 예약')`,
     `(${card(fixtureId('NORMAL'))})?.querySelector('.attendance-mismatch').textContent.includes('상태가 다릅니다')`);
    const previous=await evaluate('performance.timeOrigin');

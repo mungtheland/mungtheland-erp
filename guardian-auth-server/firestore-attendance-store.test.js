@@ -1,10 +1,12 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {createFirestoreAttendanceStore}=require('./firestore-attendance-store');
+const {createFirestoreAttendanceStore,createEmulatorAttendanceStore,EMULATOR_PROJECT,EMULATOR_HOST}=require('./firestore-attendance-store');
 const {createStaffAttendanceService}=require('./staff-attendance');
 const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {attendanceRequestEventId}=require('./attendance-history');
+const {createStaffPassDeduction}=require('./staff-pass-deduction');
+const {createPassWorkbookFixture}=require('./attendance-pass-workbook.fixture.cjs');
 const projectId='mungtheland-guardian-test',id='RSV-TEST-001';
 const staff={role:'staff',status:'active',staffId:'STAFF-TEST-001'};
 const bookingRepository={findById:async key=>key===id?{bookingId:key,status:'예약'}:null};
@@ -146,6 +148,191 @@ test('transaction retry retains one candidate and preserves prior event and docu
  assert.equal(retries,1);
  assert.deepEqual(docs.get(id),{...original,state:'하원 완료',events:[checkIn,checkOut]});
  assert.deepEqual(await store.read(id),[checkIn,checkOut]);
+});
+
+function passFixture(options){
+ const {db,docs}=fakeDb();
+ const [servicePath,port]=EMULATOR_HOST.split(':');
+ const fixtureDb={...db,projectId:EMULATOR_PROJECT,_settings:{servicePath,port:Number(port),ssl:false}};
+ const prior=process.env.FIRESTORE_EMULATOR_HOST;
+ process.env.FIRESTORE_EMULATOR_HOST=EMULATOR_HOST;
+ let store;
+ try{store=createEmulatorAttendanceStore(fixtureDb);}
+ finally{
+  if(prior===undefined)delete process.env.FIRESTORE_EMULATOR_HOST;
+  else process.env.FIRESTORE_EMULATOR_HOST=prior;
+ }
+ const workbook=createPassWorkbookFixture();
+ const {booking,pass,passId}=workbook.seed(id,options);
+ const passDeduction=createStaffPassDeduction(workbook.ledger);
+ const open=(attendanceStore=store)=>createStaffAttendanceService({bookingRepository,store:attendanceStore,clock:workbook.clock,passDeduction});
+ const session=open();
+ const checkIn=(request)=>session.transition(staff,id,'check-in',request);
+ return {db,docs,store,workbook,booking,pass,passId,passDeduction,open,session,checkIn};
+}
+const requestA='00000000-0000-4000-8000-000000000001';
+const requestB='00000000-0000-4000-8000-000000000002';
+
+test('automatic attendance pass wiring is rejected for the cloud store and a non-isolated ledger',()=>{
+ const {db,passDeduction,workbook}=passFixture();
+ assert.throws(()=>createStaffAttendanceService({bookingRepository,store:createFirestoreAttendanceStore({db,projectId}),passDeduction}),/transactional attendance/);
+ assert.throws(()=>createStaffPassDeduction({...workbook.ledger,scope:'unapproved'}),/Isolated Sheets/);
+});
+
+test('check-in deducts once, while checkout, replay, and duplicate requests do not',async()=>{
+ const f=passFixture();
+ assert.equal((await f.session.get(staff,id)).passDeductionStatus,'PENDING');
+ assert.equal(f.workbook.history.length,1);
+ assert.equal((await f.checkIn(requestA)).passDeductionStatus,'COMPLETED');
+ assert.equal(f.pass[7],7);
+ const [entry]=f.workbook.history.slice(1);
+ assert.equal(entry[8],'AUTO_ATTENDANCE');
+ assert.equal(entry[9],'local-sheets:'+id+' '+attendanceRequestEventId(requestA));
+ assert.deepEqual(f.docs.get(id).passDeduction,{key:'local-sheets:'+id,eventId:attendanceRequestEventId(requestA),status:'COMPLETED'});
+ assert.equal((await f.checkIn(requestA)).passDeductionStatus,'COMPLETED');
+ await assert.rejects(f.checkIn(requestB),/Invalid transition/);
+ assert.equal((await f.session.transition(staff,id,'check-out',requestB)).passDeductionStatus,'COMPLETED');
+ assert.equal(f.docs.get(id).events.length,2);
+ assert.equal(f.workbook.history.length,2);
+ assert.equal(f.workbook.stats().deductCalls,1);
+});
+
+test('already manually deducted shows completed using the original audit and remaining count',async()=>{
+ const f=passFixture({checkedIn:true});
+ f.workbook.runtime.mdDeductPass({bookingId:id,passId:f.passId,operator:'신송이'});
+ const snapshot=f.workbook.snapshot();
+ assert.equal((await f.checkIn()).passDeductionStatus,'COMPLETED');
+ assert.equal(f.workbook.snapshot(),snapshot);
+ assert.equal(f.workbook.history.length,2);
+ assert.equal(f.pass[7],7);
+});
+
+test('conflicting manual deduction on a different pass blocks automatic and alternate manual deductions',async()=>{
+ const f=passFixture({checkedIn:true});
+ const other=f.workbook.seed('RSV-OTHER');
+ f.booking[4]=other.passId;
+ f.workbook.runtime.mdDeductPass({bookingId:id,passId:other.passId,operator:'신송이'});
+ f.booking[4]=f.passId;
+ f.booking[9]='미차감';
+ const snapshot=f.workbook.snapshot();
+ assert.equal((await f.checkIn()).passDeductionStatus,'NEEDS_REVIEW');
+ assert.throws(()=>f.workbook.runtime.mdDeductPass({bookingId:id,passId:f.passId,operator:'신송이'}),/다른 이용권의 변동이력/);
+ assert.equal(f.workbook.snapshot(),snapshot);
+});
+
+for(const [label,options,modify,expected] of [
+ ['zero uses',{remaining:0},f=>{
+  for(let i=0;i<8;i++)f.workbook.history.push(['HIST-PREV-'+i,f.workbook.clock(),'차감',f.passId,'RSV-PAST-'+i,-1,8-i,7-i,'fixture','']);
+ },/잔여 횟수/],
+ ['before starts',{start:'2026-11-25'},()=>{},/시작일 이전/],
+ ['expired',{expiry:'2026-11-23'},()=>{},/만료일 이후/],
+ ['another dog',{},f=>{f.pass[1]='DOG-OTHER';},/반려견이 다릅니다/],
+ ['changed date',{date:'2026-11-23'},()=>{},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
+ ['cancelled reservation',{},f=>{f.booking[5]='예약취소';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
+ ['invalid Sheets attendance',{},f=>{f.booking[8]='등원 중';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
+ ['unknown product',{product:''},()=>{},/PASS_PRODUCT_UNCONFIRMED/],
+ ['unsupported recurring count',{},f=>{f.pass[5]=9;f.pass[7]=9;},/PASS_RECURRING_COUNT_UNCONFIRMED/],
+ ['missing balance provenance',{remaining:7},()=>{},/PASS_BALANCE_MISMATCH/],
+ ['mismatched booking flag',{},f=>{f.booking[9]='차감';},/변동이력이 불일치/]
+]){
+ test('attendance survives a rejected ledger validation: '+label,async()=>{
+  const f=passFixture(options);
+  modify(f);
+  const snapshot=f.workbook.snapshot();
+  assert.equal((await f.checkIn(requestA)).passDeductionStatus,'NEEDS_REVIEW');
+  const doc=f.docs.get(id);
+  assert.equal(doc.state,'등원 중');
+  assert.equal(doc.passDeduction.status,'NEEDS_REVIEW');
+  assert.equal(f.workbook.snapshot(),snapshot);
+  assert.throws(()=>f.workbook.runtime.mdAttendancePass_('deduct',{key:'local-sheets:'+id,event:doc.events[0]}),expected);
+ });
+}
+
+test('day pass and unlinked booking are excluded without affecting the ledger',async()=>{
+ for(const options of [{product:'DAILY'},{linked:false}]){
+  const f=passFixture(options);
+  const snapshot=f.workbook.snapshot();
+  assert.equal((await f.checkIn()).passDeductionStatus,'NOT_REQUIRED');
+  assert.equal((await f.open().get(staff,id)).passDeductionStatus,'NOT_REQUIRED');
+  assert.equal(f.workbook.snapshot(),snapshot);
+ }
+});
+
+test('unconfirmed claim and lost attendance acknowledgement do not dispatch deductions',async()=>{
+ for(const lostOperation of ['claimPassDeduction','commitTransition']){
+  const f=passFixture();
+  const service=f.open({...f.store,[lostOperation]:async args=>{
+   await f.store[lostOperation](args);
+   throw Error('Fixture acknowledgement lost');
+  }});
+  if(lostOperation==='commitTransition')await assert.rejects(service.transition(staff,id,'check-in',requestA),{code:'ATTENDANCE_OUTCOME_UNKNOWN'});
+  else assert.equal((await service.transition(staff,id,'check-in',requestA)).passDeductionStatus,'NEEDS_REVIEW');
+  assert.equal((await f.open().transition(staff,id,'check-in',requestA)).passDeductionStatus,'NEEDS_REVIEW');
+  assert.equal(f.workbook.stats().deductCalls,0);
+  assert.equal(f.docs.get(id).events.length,1);
+ }
+});
+
+for(const [fault,readback,balance,entries] of [
+ ['reject','NEEDS_REVIEW',8,1],['partial','NEEDS_REVIEW',8,2],['lost','COMPLETED',7,2]
+]){
+ test('failure reconciliation is read-only across recreated services: '+fault,async()=>{
+  const f=passFixture();
+  f.workbook.faults.set(id,fault);
+  assert.equal((await f.checkIn(requestA)).passDeductionStatus,'NEEDS_REVIEW');
+  const snapshot=f.workbook.snapshot();
+  assert.equal((await f.open().get(staff,id)).passDeductionStatus,readback);
+  assert.equal((await f.open().transition(staff,id,'check-in',requestA)).passDeductionStatus,readback);
+  assert.equal(f.workbook.stats().deductCalls,1);
+  assert.equal(f.docs.get(id).events.length,1);
+  assert.equal(f.pass[7],balance);
+  assert.equal(f.workbook.history.length,entries);
+  assert.equal(f.workbook.snapshot(),snapshot);
+ });
+}
+
+test('correction requires verified administrator and reason and cannot trigger another automatic deduction',async()=>{
+ const f=passFixture();
+ await f.checkIn(requestA);
+ const input={bookingId:id,passId:f.passId,operator:'신송이',reason:'출석 이후 정정'};
+ const snapshot=f.workbook.snapshot();
+ assert.throws(()=>f.workbook.runtime.mdRestorePass({...input,role:'admin',approved:true}),/관리자 권한/);
+ assert.equal(f.workbook.snapshot(),snapshot);
+ f.workbook.authorizeAdmin();
+ assert.throws(()=>f.workbook.runtime.mdRestorePass({...input,reason:''}),/사유/);
+ f.workbook.runtime.mdRestorePass(input);
+ assert.equal(f.pass[7],8);
+ assert.equal(f.workbook.history.at(-1)[8],'PASS-ADMIN-FIXTURE');
+ assert.equal(f.workbook.history.at(-1)[9],input.reason);
+ assert.equal((await f.open().get(staff,id)).passDeductionStatus,'NEEDS_REVIEW');
+ assert.equal((await f.open().transition(staff,id,'check-in',requestA)).passDeductionStatus,'NEEDS_REVIEW');
+ const event=f.docs.get(id).events[0];
+ assert.equal((await f.workbook.ledger.deduct({key:'local-sheets:'+id,event})).status,'NEEDS_REVIEW');
+ f.booking[6]=f.workbook.clock();f.booking[8]='등원 중';
+ assert.throws(()=>f.workbook.runtime.mdDeductPass(input),/다시 차감할 수 없습니다/);
+ assert.equal(f.workbook.history.length,3);
+ assert.equal(f.pass[7],8);
+});
+
+test('a partial automatic write blocks a later manual deduction on the same pass',async()=>{
+ const f=passFixture();
+ f.workbook.faults.set(id,'partial');
+ assert.equal((await f.checkIn()).passDeductionStatus,'NEEDS_REVIEW');
+ const {booking}=f.workbook.seed('RSV-OTHER',{checkedIn:true});
+ booking[4]=f.passId;
+ const before=f.workbook.snapshot();
+ assert.throws(()=>f.workbook.runtime.mdDeductPass({bookingId:booking[0],passId:f.passId,operator:'신송이'}),/PASS_BALANCE_MISMATCH/);
+ assert.equal(f.workbook.snapshot(),before);
+});
+
+test('readback rejects an automatic audit that refers to another attendance event',async()=>{
+ const f=passFixture();
+ await f.checkIn(requestA);
+ f.workbook.history.at(-1)[9]='local-sheets:'+id+' '+attendanceRequestEventId(requestB);
+ const before=f.workbook.snapshot();
+ assert.equal((await f.open().get(staff,id)).passDeductionStatus,'NEEDS_REVIEW');
+ assert.equal(f.workbook.snapshot(),before);
+ assert.equal(f.workbook.stats().deductCalls,1);
 });
 
 test('concurrent adapters cannot commit duplicate check-in or check-out without a service lock',async()=>{

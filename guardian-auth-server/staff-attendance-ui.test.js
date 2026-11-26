@@ -12,6 +12,7 @@ const otherDate='2026-11-25';
 
 class Element{
  children=[];dataset={};value='';hidden=false;
+ constructor(tag){this.tag=tag;}
  set textContent(value){this.children=[];this.text=value;}
  get textContent(){return this.text;}
  append(...elements){this.children.push(...elements);}
@@ -46,12 +47,12 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
    if(checkoutRequests.length===1)throw new DOMException('Fixture timeout','TimeoutError');
    state='하원 완료';return response({attendance:{state}});
   }
-  if(url.endsWith('/RSV-RECOVER/attendance'))return response({attendance:{state}});
+  if(url.endsWith('/RSV-RECOVER/attendance'))return response({attendance:{state,passDeductionStatus:'NEEDS_REVIEW'}});
   if(url.endsWith('/RSV-OTHER/attendance'))return response({attendance:{state:'예약'}});
   assert.fail('Unexpected request '+url);
  };
  vm.runInNewContext(script,{
-  document:{getElementById:element,createElement:()=>new Element()},
+  document:{getElementById:element,createElement:tag=>new Element(tag)},
   initializeApp:()=>({}),getAuth:()=>({currentUser:{getIdToken:async()=>'mock'}}),onAuthStateChanged:()=>{},fetch,
   AbortSignal,crypto:require('node:crypto')
  });
@@ -64,12 +65,14 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  await element('list').onclick();
  assert.equal(cards().length,3);
  const [http,network,recovered]=cards();
+ const attendanceButtons=card=>card.children.filter(child=>child.tag==='button').slice(1);
+ const passStatus=recovered.children.find(child=>child.className==='pass-deduction');
+ const notice=recovered.children.find(child=>child.className==='attendance-action');
  assert.match(http.children[6].textContent,/HTTP 503/);
  assert.match(network.children[6].textContent,/출석 조회 중 오류 발생/);
  for(const card of [http,network]){
   assert.equal(card.children[2].textContent,'등하원: 출석 기록 확인 필요');
-  assert.equal(card.children[7].disabled,true);
-  assert.equal(card.children[8].disabled,true);
+  assert.deepEqual(attendanceButtons(card).map(button=>button.disabled),[true,true]);
  }
  assert.equal(recovered.children[2].textContent,'등하원: 등원 중');
  assert.deepEqual(summary(),{'전체 예약':3,'미등원':0,'등원 중':1,'하원 완료':0,'출석 확인 필요':2,'직원 확인 대기':0});
@@ -79,17 +82,20 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  search.value='';search.oninput();
  filter.value='등원 중';filter.onchange();
  assert.deepEqual(cards().map(card=>Boolean(card.hidden)),[true,true,false]);
- assert.equal(recovered.children[8].disabled,false);
- await recovered.children[8].onclick();
- assert.match(recovered.children[9].textContent,/처리 결과를 확인할 수 없습니다.*다시 조회했습니다/);
- assert.equal(recovered.children[8].disabled,false);
+ const [,checkout]=attendanceButtons(recovered);
+ assert.equal(checkout.disabled,false);
+ assert.match(passStatus.textContent,/차감 미완료/);
+ await checkout.onclick();
+ assert.match(notice.textContent,/처리 결과를 확인할 수 없습니다.*다시 조회했습니다/);
+ assert.equal(checkout.disabled,false);
  assert.deepEqual(summary(),{'전체 예약':3,'미등원':0,'등원 중':1,'하원 완료':0,'출석 확인 필요':2,'직원 확인 대기':0});
- await recovered.children[8].onclick();
+ await checkout.onclick();
  assert.ok(checkoutRequests[0]);
  assert.equal(checkoutRequests[0],checkoutRequests[1]);
- assert.equal(recovered.children[9].textContent,'출석 처리를 확인했습니다.');
+ assert.equal(notice.textContent,'출석 처리를 확인했습니다.');
  assert.equal(recovered.children[2].textContent,'등하원: 하원 완료');
- assert.equal(recovered.children[8].disabled,true);
+ assert.equal(checkout.disabled,true);
+ assert.match(passStatus.textContent,/차감 미완료/);
  assert.equal(Boolean(recovered.hidden),true);
  assert.deepEqual(summary(),{'전체 예약':3,'미등원':0,'등원 중':0,'하원 완료':1,'출석 확인 필요':2,'직원 확인 대기':0});
  visitDate.value=otherDate;filter.value='all';await visitDate.onchange();

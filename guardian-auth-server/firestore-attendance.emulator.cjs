@@ -232,6 +232,25 @@ if(require.main===module&&process.argv[2]==='worker'){
    assert.deepEqual((await Promise.all(children.map(child=>child.result))).map(result=>result.state),['등원 중','등원 중']);
    assert.equal((await client.store.read(id)).length,1);
   });
+  await t.test('independent clients can claim the confirmed pass deduction only once',async()=>{
+   const id=bookingId(),key='local-sheets:'+id;
+   const other=emulatorClient();
+   try{
+    await service().transition(staff[0],id,'check-in',randomUUID());
+    const [event]=await client.store.read(id);
+    const input={bookingId:id,eventId:event.eventId,key};
+    assert.equal(await client.store.claimPassDeduction({...input,eventId:'wrong-event'}),false);
+    const claims=await Promise.all([client.store,other.store].map(store=>store.claimPassDeduction(input)));
+    assert.deepEqual(claims.sort(),[false,true]);
+    assert.equal(await other.store.finishPassDeduction({...input,status:'NEEDS_REVIEW'}),true);
+    assert.equal(await client.store.finishPassDeduction({...input,status:'COMPLETED'}),false);
+    await service().transition(staff[0],id,'check-out',randomUUID());
+    assert.equal(await other.store.claimPassDeduction(input),false);
+    const {events,passDeduction}= (await other.db.collection('attendance_test_v1').doc(id).get()).data();
+    assert.equal(events.length,2);
+    assert.deepEqual(passDeduction,{key,eventId:event.eventId,status:'NEEDS_REVIEW'});
+   }finally{await other.close();}
+  });
   await t.test('malformed documents and events block reads and writes without alteration',async()=>{
    for(const missingId of [false,true]){
     const id=bookingId();
