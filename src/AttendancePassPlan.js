@@ -21,7 +21,7 @@ function mdPassDay_(value,formatDay){
   return Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===value?value:null;
 }
 
-function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,productKinds,formatDay,today,attendanceState}){
+function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,productKinds,formatDay,today,attendanceState,strictCatalog=false}){
   const review=reason=>({status:'NEEDS_REVIEW',reason});
   const visit=mdPassDay_(b[1],formatDay);
   const eventDate=new Date(event.at);
@@ -57,10 +57,12 @@ function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,p
   catch(error){return review(error.message==='PASS_BALANCE_MISMATCH'?'PASS_BALANCE_MISMATCH':'PASS_HISTORY_MISMATCH');}
 
   const productId=String(p[2]||'');
-  const kind=productId&&productKinds&&Object.prototype.hasOwnProperty.call(productKinds,productId)?productKinds[productId]:null;
+  const definition=productId&&productKinds&&Object.prototype.hasOwnProperty.call(productKinds,productId)?productKinds[productId]:null;
+  const kind=typeof definition==='string'?definition:definition?.kind;
   if(kind==='DAY'&&deduction==='미차감'&&!bookingHistory.length)return {status:'NOT_REQUIRED',reason:'DAY_PASS'};
   if(kind!=='RECURRING')return review('PASS_PRODUCT_UNCONFIRMED');
-  if(![8,12,16,20].includes(total))return review('PASS_RECURRING_COUNT_UNCONFIRMED');
+  if(![8,12,16,20].includes(total)||((strictCatalog||typeof definition==='object')&&definition.total!==total))
+    return review('PASS_RECURRING_COUNT_UNCONFIRMED');
 
   if(previouslyCharged){
     const automaticRows=bookingHistory.filter(row=>row[2]==='차감'&&row[8]==='AUTO_ATTENDANCE');

@@ -2,6 +2,7 @@
 
 const {mdPlanAttendancePass_}=require('../src/AttendancePassPlan');
 const {validateAttendanceHistory}=require('./attendance-history');
+const {PassLedgerReadError}=require('./staff-pass-ledger-read');
 
 const bookingColumns=['예약 ID','이용일','반려견 ID',null,'이용권 ID','예약상태','등원시간','하원시간','출석상태','차감상태'];
 const passColumns=['이용권 ID','반려견 ID','상품 ID',null,null,'총 횟수','사용 횟수','잔여 횟수','시작일','만료일',null,null,null,'결제상태','이용권상태'];
@@ -22,7 +23,9 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
    !productKinds||typeof productKinds!=='object'||Array.isArray(productKinds))
   throw Error('Explicit diagnostic scope and schema required');
  const allowedBookings=new Set(bookingIds);
- const kinds={...productKinds};
+ const kinds=Object.fromEntries(Object.entries(productKinds).map(([id,definition])=>[
+  id,definition&&typeof definition==='object'?{kind:definition.kind,total:definition.total}:definition
+ ]));
  const expectedHistoryColumns=[...historyColumns];
  const attendanceTarget=Object.freeze({projectId,databaseId,region,collection});
  const formatDay=date=>seoulDay.format(date);
@@ -49,6 +52,8 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
     command.expiresAt<=now||command.expiresAt-command.issuedAt>maxRequestLifetime)
    return blocked('REQUEST_OUT_OF_SCOPE_OR_EXPIRED');
   const {bookingId,eventId,expiresAt}=command;
+  const readSource=()=>bounded(signal=>readAttendance({...attendanceTarget,bookingId,signal}),expiresAt);
+  const inAttendanceScope=value=>value&&Object.entries(attendanceTarget).every(([key,expected])=>value[key]===expected);
   let staff;
   try{staff=await bounded(signal=>verifyStaff(staffCredential,{signal}),expiresAt);}
   catch{return blocked('STAFF_AUTH_FAILED');}
@@ -62,10 +67,11 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
    return blocked('SERVICE_AUTH_FAILED');
 
   let source;
-  try{source=await bounded(signal=>readAttendance({...attendanceTarget,bookingId,signal}),expiresAt);}
+  try{source=await readSource();}
   catch(error){return blocked(error===TIMEOUT?'ATTENDANCE_TIMEOUT':'ATTENDANCE_READ_FAILED');}
-  if(!source||!Object.entries(attendanceTarget).every(([key,value])=>source[key]===value))
+  if(!inAttendanceScope(source))
    return blocked('ATTENDANCE_SCOPE_UNVERIFIED');
+  const attendanceVersion=source.version;
   const document=source.document;
   if(!document)return review('ATTENDANCE_NOT_CONFIRMED');
   let state;
@@ -78,9 +84,23 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
 
   let workbook;
   try{workbook=await bounded(signal=>readLedger({workbookId,bookingId,signal}),expiresAt);}
-  catch(error){return blocked(error===TIMEOUT?'LEDGER_TIMEOUT':'LEDGER_READ_FAILED');}
+  catch(error){return blocked(error===TIMEOUT?'LEDGER_TIMEOUT':error instanceof PassLedgerReadError?error.message:'LEDGER_READ_FAILED');}
   if(clock()>=expiresAt)return blocked('REQUEST_OUT_OF_SCOPE_OR_EXPIRED');
   if(workbook?.workbookId!==workbookId||workbook.complete!==true)return blocked('LEDGER_SCOPE_OR_COMPLETENESS_UNVERIFIED');
+  if(workbook.snapshot!==undefined){
+   const {openedAt,closedAt}=workbook.snapshot||{};
+   if(![openedAt,closedAt].every(Number.isSafeInteger)||openedAt>closedAt||closedAt>clock()||
+     typeof attendanceVersion!=='string'||!attendanceVersion)
+    return blocked('ATTENDANCE_SNAPSHOT_UNVERIFIED');
+   let readback;
+   try{readback=await readSource();}
+   catch(error){return blocked(error===TIMEOUT?'ATTENDANCE_TIMEOUT':'ATTENDANCE_READ_FAILED');}
+   if(clock()>=expiresAt)return blocked('REQUEST_OUT_OF_SCOPE_OR_EXPIRED');
+   if(!inAttendanceScope(readback))return blocked('ATTENDANCE_SCOPE_UNVERIFIED');
+   if(readback.version!==attendanceVersion||readback.document?.state!==state||
+     readback.document?.bookingId!==bookingId||readback.document?.events?.[0]?.eventId!==eventId)
+    return blocked('ATTENDANCE_SNAPSHOT_CHANGED');
+  }
   const {bookings,passes,history}=workbook;
   const valid=(table,columns)=>Array.isArray(table?.headers)&&
    columns.every((label,index)=>label===null||table.headers[index]===label)&&
@@ -98,7 +118,7 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
   let result;
   try{
    result=mdPlanAttendancePass_({bookingId,booking,pass:passRows[0],history:history.rows,event,scope,
-    productKinds:kinds,formatDay,today:formatDay(new Date(clock())),attendanceState:state});
+    productKinds:kinds,formatDay,today:formatDay(new Date(clock())),attendanceState:state,strictCatalog:workbook.snapshot!==undefined});
   }catch{return blocked('LEDGER_DATA_INVALID');}
   const claim=document.passDeduction;
   if(claim!==undefined&&(claim?.key!==scope+':'+bookingId||claim.eventId!==eventId||

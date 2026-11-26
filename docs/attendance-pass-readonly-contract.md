@@ -38,7 +38,23 @@
 - **전용 Workspace 실행자와 Apps Script API 실행 배포**. 공유된 표준 Cloud 프로젝트, API 실행 배포와 별도 OAuth 사용자 승인이 필요합니다. Apps Script 실행 API는 서비스 계정 직접 호출을 지원하지 않으며 스크립트 전체에 필요한 범위를 요구합니다. 대상 스크립트의 전체 범위와 배포 실행자, 회사 정책의 승인을 확인한 뒤만 선택할 수 있습니다. [Apps Script 실행 API 요건](https://developers.google.com/apps-script/api/how-tos/execute)
 - **인증된 중계 서비스와 Apps Script의 승인된 작업 조회**. 직원 서버 워크로드가 대상 서비스용 신원 증명으로 중계 서비스에 제출하고, 지정된 Apps Script 실행자가 작업을 조회하는 방식입니다. Apps Script 쪽 작업 조회에는 별도 Google OIDC 실행자와 허용 대상 확인이 필요합니다. 설치형 실행을 쓴다면 생성자 계정으로 실행되므로 소유권·운영시간·중단 및 감사를 먼저 승인해야 합니다. 중계가 원장에 직접 쓰면 기존 잠금이 적용되지 않으므로 원장 쓰기는 동일 스크립트에 한정합니다. [Cloud Run 서비스 인증](https://docs.cloud.google.com/run/docs/authenticating/service-to-service) · [Apps Script에서 Cloud 서비스 연결](https://developers.google.com/apps-script/guides/services/cloud-run) · [설치형 트리거](https://developers.google.com/apps-script/guides/triggers/installable)
 
-두 방식의 운영 실행자·배포·권한은 확인되지 않았습니다. 외부에 진단 엔드포인트를 노출하거나 기존 IAM, OAuth, Apps Script 배포를 변경하지 않았습니다.
+### 51단계 권장안
+
+**인증된 중계 서비스에 접수하고, 기존 운영 Apps Script 프로젝트의 승인된 Workspace 실행자가 작업을 가져가는 방식**을 선정했습니다. 직원 서버와 Apps Script 실행자의 신원을 분리할 수 있고, 직원 서버에 운영 Apps Script 사용자 OAuth 갱신 자격을 두지 않아도 됩니다. Apps Script 실행 API를 직접 사용하면 별도의 API 실행 배포와 공통 표준 Cloud 프로젝트가 필요하고, 승인된 사용자 자격이 해당 스크립트 전체 범위를 포함해야 합니다. [Apps Script 실행 API 요건](https://developers.google.com/apps-script/api/how-tos/execute)
+
+1. 직원 서버는 기존 Firebase 검증이 끝난 출석 이벤트만 중계 서비스에 접수합니다. 중계는 직원 서버의 전용 워크로드와 Apps Script 실행자의 Google 주체를 각자 검증합니다. 발급자·서명·대상·주체·만료를 확인하고, 접수 권한과 작업 조회 권한을 분리합니다. 브라우저는 중계나 운영 원장을 호출하지 않습니다. [Cloud Run 서비스 인증](https://docs.cloud.google.com/run/docs/authenticating/service-to-service) · [Apps Script에서 Cloud 서비스 연결](https://developers.google.com/apps-script/guides/services/cloud-run)
+2. 승인된 실행자가 **수동 차감과 같은 Apps Script 프로젝트**에서 작업을 가져갑니다. 승인된 원장과 예약·이벤트 범위를 다시 검증하고, 수동·자동 모두 같은 `LockService.getScriptLock()` 안에서 예약과 이용권의 최신 이력 및 잔여를 확인합니다. 중계는 이용권 원장을 수정하지 않습니다. 자동 실행에 설치형 트리거를 사용한다면 승인된 실행자 계정으로 설치해야 합니다. [Apps Script 잠금 범위](https://developers.google.com/apps-script/reference/lock/lock-service) · [설치형 트리거와 실행자](https://developers.google.com/apps-script/guides/triggers/installable)
+3. 원장 범위와 예약 ID로 접수·발송을 한 번만 허용하고, 확정 이벤트 ID를 증거에 연결합니다. 중계가 미발송 작업을 최초 인도할 때 출석을 다시 확인하고 60초 이내의 작업 증명을 발행합니다. 발송이 있었는지 또는 결과가 불명확하면 사람 검토와 원장 읽기로 넘깁니다. 설치형 작업 조회의 대기 시간과 제한, 실행자 교체, 접근 차단, 긴급 중단, 감사 및 경보의 운영 책임을 사전에 정해야 합니다.
+
+권장안은 **현 설정에서 실행 BLOCKED**입니다. 저장소에는 격리 clasp 대상과 Apps Script 소스만 확인됐고, 활성 CLI 사용자 및 기본 사용자 ADC는 운영 원장 소유자 승인이나 운영 실행 주체의 증거와 연결되지 않았습니다. 두 서비스의 실제 주체·배포·호출 경로와 Apps Script에서 중계로의 네트워크 및 허용 대상을 확인해야 합니다. 외부 진단 엔드포인트 공개, 새 권한 요청, 기존 IAM·OAuth·배포 수정은 수행하지 않았습니다.
+
+## 51단계 읽기 어댑터
+
+`staff-pass-ledger-read.js`는 독립적으로 확인된 읽기 주체에 결합한 `drive.files.get`과 `sheets.spreadsheets.get`만 주입받습니다. 승인 기록에는 운영·격리·합성 환경별로 서로 다른 파일 ID, 읽기 주체, 예약 허용 목록, 범위와 만료가 필요합니다. 요청이 임의 원장이나 열을 지정하면 API에 전달하기 전에 차단합니다. 실환경에서 이 어댑터를 쓰려면 해당 소유자가 이미 승인한 뷰어와 Drive 버전 메타데이터, Sheets 읽기 범위가 필요합니다. [Drive 읽기 전용 메타데이터](https://developers.google.com/workspace/drive/api/guides/file-metadata)
+
+- 승인할 범위는 데이터 계약 표의 7개 연속 열 구간입니다. 예약 `A1:C`, `E1:J`, 이용권 `A1:C`, `F1:J`, `N1:O`, 이력 `A1:A`, `C1:J`의 전체 행이 필요합니다. 소유자 승인이 일부 행에만 해당하면 이 방식으로는 전체 행을 읽지 않습니다. 예약 허용 목록은 조회한 데이터 중 진단할 예약을 제한하며 API에서 전체 열을 읽는 범위를 대신하지 않습니다.
+- Drive에서 파일 ID, 스프레드시트 유형, 버전 및 편집 가능 여부를 확인하고, Sheets에서 서울 시간대와 허용된 GRID 시트의 크기를 먼저 읽습니다. 크기를 바탕으로 7개 범위의 전체 행을 한 번에 읽고, 범위 오프셋과 시트 크기 및 Drive 버전을 다시 확인합니다. 제한 시간을 넘거나, 버전 또는 크기가 달라지거나, 선택된 값이 수식·계산 결과인 경우 판정을 폐기합니다. Firestore도 원장 조회 전후 문서 버전을 대조합니다. 이 방법은 관측 구간의 일관성을 확인합니다. 두 시스템에 걸쳐 쓰기 잠금을 잡지는 않습니다. [Drive 파일 버전](https://developers.google.com/workspace/drive/api/reference/rest/v3/files) · [Sheets 범위와 필드 마스크](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/get) · [Sheets 원시 값과 계산 값](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/cells)
+- 진단은 승인된 상품 ID가 가리키는 정확한 8·12·16·20회 값을 사용합니다. 상품 분류나 회차가 불명확하면 검토가 필요합니다. 수동 감사 행의 담당자·사유는 조회 결과에서 제외하고, 자동 차감 이력은 예약과 연결된 작업 증명만 대조에 사용합니다. 외부 결과는 고정 상태와 사유 코드, 필요 시 회차 예측만 반환합니다.
 
 ## 실행 가능한 합성 진단
 
@@ -47,6 +63,7 @@
 ```powershell
 node guardian-auth-server/run-staff-pass-dry-run.cjs --synthetic
 node --test guardian-auth-server/staff-pass-dry-run.test.js
+node --test guardian-auth-server/staff-pass-ledger-read.test.js
 ```
 
 첫 명령은 여섯 합성 사례의 판정·사유 건수와 정기권 잔여 8회에서 7회로의 예상 결과만 출력합니다. 진단은 원장 쓰기 모듈을 불러오지 않으며, 읽기 포트와 49단계 자동 차감과 공유하는 순수 판정 함수만 사용합니다.
@@ -57,6 +74,6 @@ node --test guardian-auth-server/staff-pass-dry-run.test.js
 - `NEEDS_REVIEW`는 미연결·누락·중복·정합성 오류·이전 발송 흔적 또는 하원 뒤 미완료 등입니다. 안전하게 조회할 수 있는 범위에서 관리자 확인이 필요합니다.
 - `BLOCKED`는 인증·대상·스키마·읽기 실패나 시간 제한입니다. 다른 계정으로 전환하거나 다시 요청하지 않습니다.
 
-## 51단계 선행 조건
+## 실원장 검증 선행 조건
 
-운영 데이터 소유자에게 운영 원장과 허용된 읽기 주체·예약 범위를 확인받고, 해당 주체의 기존 뷰어 권한을 증명해야 합니다. 실제 증거로 상품 ID와 8·12·16·20회 매핑, 예약 연결, 변동이력 헤더 및 잔여 대조를 검증합니다. 운영 배포 방식을 하나 확정한 뒤 서비스 주체, 원장 잠금, 정정 주체와 부분 실패 처리의 권한을 별도로 승인받습니다. 운영 활성화·실환경 차감·복구는 각각 별도 승인으로 남습니다.
+기존 소유자 승인에서 운영 원장, 허용 시트와 열, 예약 범위, 읽기 주체 및 뷰어 권한을 확인한 뒤 원장 점검을 실행합니다. 먼저 실제 변동이력 헤더, 상품 ID와 8·12·16·20회 매핑, 예약 연결, 중복 및 잔여 불일치의 익명 건수를 확인합니다. 권장 배포안의 실제 서비스 주체와 인입 경로, 기존 프로젝트의 공통 잠금, 부분 실패 및 정정 책임의 승인은 별도입니다. 운영 활성화·실환경 차감·복구 역시 개별 승인 대상으로 유지합니다.

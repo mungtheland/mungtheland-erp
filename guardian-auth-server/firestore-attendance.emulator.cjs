@@ -15,7 +15,8 @@ const {createStaffArrivalHttpHandler}=require('./staff-arrival-http');
 const {runEmulatorProbe}=require('./firestore-attendance-write-probe');
 const {runEmulatorResidueCheck}=require('./firestore-attendance-residue-check');
 const {createPassDeductionDryRun}=require('./staff-pass-dry-run');
-const {createSyntheticDryRunFixture}=require('./run-staff-pass-dry-run.cjs');
+const {createSyntheticDryRunFixture,createSyntheticLedgerOptions}=require('./run-staff-pass-dry-run.cjs');
+const {createPassLedgerReader}=require('./staff-pass-ledger-read');
 
 const [host,portText]=EMULATOR_HOST.split(':');
 const port=Number(portText);
@@ -207,9 +208,12 @@ if(require.main===module&&process.argv[2]==='worker'){
     assert.equal(databaseId,'(default)');
     assert.equal(collection,binding.collection);
     assert.equal(bookingId,dryRunBookingId);
-    return {projectId,databaseId,region,collection,document:(await ref.get()).data()};
+    const snapshot=await ref.get();
+    return {projectId,databaseId,region,collection,document:snapshot.data(),
+     version:snapshot.updateTime.seconds+':'+snapshot.updateTime.nanoseconds};
    };
    const prior=structuredClone(fixture.workbook);
+   fixture.ports.readLedger=createPassLedgerReader(createSyntheticLedgerOptions(fixture));
    const result=await createPassDeductionDryRun(fixture.ports)(fixture.request);
    assert.equal(result.status,'ELIGIBLE');
    assert.equal(result.projection.remainingAfter,7);
