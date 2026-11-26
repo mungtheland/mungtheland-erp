@@ -1,15 +1,17 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>멍더랜드 직원 등원 확인 테스트</title><style>body{font:16px system-ui;max-width:560px;margin:40px auto;padding:16px}input,button{display:block;box-sizing:border-box;width:100%;padding:12px;margin:8px 0}pre{white-space:pre-wrap;background:#eee;padding:12px}button{cursor:pointer}.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.summary div{border:1px solid #ddd;border-radius:8px;padding:12px}.summary strong{display:block;font-size:24px}.booking-card{border:1px solid #d4ded7;border-radius:10px;padding:14px;margin:10px 0;background:#fff}.booking-card h3{margin:0 0 6px}.booking-card p{margin:6px 0}.booking-card button{margin-bottom:0}.booking-card .status{font-weight:600}.booking-card[data-review='pending']{border-left:5px solid #bb7a12}.booking-card[data-review='confirmed']{border-left:5px solid #287552}.booking-card[data-review='unknown']{border-left:5px solid #777}.attendance-state{font-weight:700;padding:8px 10px;border-radius:6px;background:#f2f4f5}.attendance-state[data-state='예약']{background:#f3f4f6;color:#454b54}.attendance-state[data-state='등원 중']{background:#e7f2ff;color:#165b98}.attendance-state[data-state='하원 완료']{background:#e4f5e9;color:#23643a}.attendance-detail{font-size:13px;color:#555;overflow-wrap:anywhere}.list-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.list-controls input,.list-controls select{width:100%;box-sizing:border-box;padding:10px}.booking-card[hidden]{display:none}@media(max-width:480px){.list-controls{grid-template-columns:1fr}}@media(max-width:480px){body{margin:12px auto;padding:12px}.summary{gap:6px}}</style><h1>직원 등원 요청 확인 · 격리 테스트</h1><p>테스트 직원 계정만 사용하세요. 운영 ERP가 아닙니다.</p><form id="login"><input id="email" type="email" placeholder="직원 테스트 이메일" required><input id="password" type="password" placeholder="비밀번호" required><button>로그인</button></form><button id="logout">로그아웃</button><label>조회 날짜<input id="visit-date" type="date"></label><button id="today" type="button">오늘 예약</button><button id="list" type="button">선택 날짜 예약 조회</button><div id="booking-summary" class="summary" aria-live="polite"></div><div class="list-controls"><label>등하원 상태 필터<select id="attendance-filter"><option value="all">전체</option><option value="예약">미등원</option><option value="등원 중">등원 중</option><option value="하원 완료">하원 완료</option></select></label><label>반려견·예약번호 검색<input id="booking-search" type="search" placeholder="이름 또는 예약번호"></label></div><div id="booking-list" role="status"></div><label>테스트 예약번호<input id="booking" value="RSV-TEST-001"></label><button id="load">요청 조회</button><pre id="result" role="status">대기 중</pre><section id="review" hidden><h2>등원 요청사항</h2><p id="review-status"></p><dl id="review-fields"></dl></section><button id="ack" disabled>현재 버전 확인 처리</button><script type="module">
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>멍더랜드 직원 출석 관리</title><style>body{font:16px system-ui;max-width:560px;margin:40px auto;padding:16px}input,button{display:block;box-sizing:border-box;width:100%;padding:12px;margin:8px 0}pre{white-space:pre-wrap;background:#eee;padding:12px}button{cursor:pointer}.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.summary div{border:1px solid #ddd;border-radius:8px;padding:12px}.summary strong{display:block;font-size:24px}.booking-card{border:1px solid #d4ded7;border-radius:10px;padding:14px;margin:10px 0;background:#fff}.booking-card h3{margin:0 0 6px}.booking-card p{margin:6px 0}.booking-card button{margin-bottom:0}.booking-card .status{font-weight:600}.booking-card[data-review='pending']{border-left:5px solid #bb7a12}.booking-card[data-review='confirmed']{border-left:5px solid #287552}.booking-card[data-review='unknown']{border-left:5px solid #777}.attendance-state{font-weight:700;padding:8px 10px;border-radius:6px;background:#f2f4f5}.attendance-state[data-state='예약']{background:#f3f4f6;color:#454b54}.attendance-state[data-state='등원 중']{background:#e7f2ff;color:#165b98}.attendance-state[data-state='하원 완료']{background:#e4f5e9;color:#23643a}.attendance-detail{font-size:13px;color:#555;overflow-wrap:anywhere}.list-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.list-controls input,.list-controls select{width:100%;box-sizing:border-box;padding:10px}.booking-card[hidden]{display:none}@media(max-width:480px){.list-controls{grid-template-columns:1fr}}@media(max-width:480px){body{margin:12px auto;padding:12px}.summary{gap:6px}}</style><h1>직원 출석 관리 · 격리 테스트</h1><p>테스트 직원 계정만 사용하세요. 운영 ERP가 아닙니다.</p><form id="login"><input id="email" type="email" placeholder="직원 테스트 이메일" required><input id="password" type="password" placeholder="비밀번호" required><button>로그인</button></form><button id="logout">로그아웃</button><label>조회 날짜<input id="visit-date" type="date"></label><button id="today" type="button">오늘 예약</button><button id="list" type="button">선택 날짜 예약 조회</button><div id="booking-summary" class="summary" aria-live="polite"></div><div class="list-controls"><label>등하원 상태 필터<select id="attendance-filter"><option value="all">전체</option><option value="예약">미등원</option><option value="등원 중">등원 중</option><option value="하원 완료">하원 완료</option></select></label><label>반려견·예약번호 검색<input id="booking-search" type="search" placeholder="이름 또는 예약번호"></label></div><div id="booking-list" role="status"></div><label>테스트 예약번호<input id="booking" value="RSV-TEST-001"></label><button id="load">요청 조회</button><pre id="result" role="status">대기 중</pre><section id="review" hidden><h2>등원 요청사항</h2><p id="review-status"></p><dl id="review-fields"></dl></section><button id="ack" disabled>현재 버전 확인 처리</button><script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
-import {getAuth,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 const app=initializeApp({apiKey:'AIzaSyB_Mz4-w0Wi7HNyKYyyFKEDTlsT8y7pwOg',authDomain:'mungtheland-guardian-test.firebaseapp.com',projectId:'mungtheland-guardian-test',appId:'1:778415626572:web:c0c2307f1a241005bfd7e9'});
 const auth=getAuth(app),$=id=>document.getElementById(id);let revision=null;
 const url=()=>'/api/staff/bookings/'+encodeURIComponent($('booking').value.trim())+'/arrival-request';
 const show=x=>$('result').textContent=x;
+const authError=status=>status===401?'로그인이 만료됐습니다. 다시 로그인해 주세요.':status===403?'직원 접근 권한이 거부됐습니다.':null;
 const koreaToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const formatKst=value=>{if(!value)return '기록 없음';const d=new Date(value);if(Number.isNaN(d.getTime()))return '시간 확인 불가';return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);};
 $('visit-date').value=koreaToday();
 let listRequest=0;let currentEntries=[];
 const pendingAttendanceRequests=new Map();
+const activeAttendance=new Set();
 function applyListFilters(){const filter=$('attendance-filter').value,term=$('booking-search').value.trim().toLocaleLowerCase('ko-KR');for(const item of currentEntries){const state=item.state||'';item.element.hidden=(filter!=='all'&&state!==filter)||(term&&!item.search.includes(term));}}
 $('attendance-filter').onchange=applyListFilters;$('booking-search').oninput=applyListFilters;
 async function loadList(){
@@ -20,11 +22,14 @@ async function loadList(){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){root.textContent='조회 날짜를 선택해 주세요.';return;}
  root.textContent='예약 목록 조회 중';
  try{
-  const token=await auth.currentUser.getIdToken();
+  const user=auth.currentUser;
+  const token=await user.getIdToken();
+  if(seq!==listRequest||auth.currentUser!==user)return;
   const response=await fetch('/api/staff/bookings',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
   if(seq!==listRequest)return;
-  if(!response.ok){root.textContent=response.status===401||response.status===403?'인증 또는 권한 확인 필요. 다시 로그인해 주세요.':'예약 목록 조회 실패 HTTP '+response.status;return;}
+  if(!response.ok){root.textContent=authError(response.status)||'예약 목록 조회 실패 HTTP '+response.status;return;}
   const data=await response.json();
+  if(seq!==listRequest)return;
   if(!Array.isArray(data.bookings))throw Error('Invalid response');
   const combinedById=new Map((Array.isArray(data.combined)?data.combined:[]).map(v=>[v.bookingId,v]));
   const matches=data.bookings.filter(v=>v.visitDate===date);
@@ -62,14 +67,23 @@ async function loadList(){
    const name=document.createElement('h3');name.textContent=booking.dogName||'반려견';
    const info=document.createElement('p');info.textContent=(booking.visitDate||'날짜 미등록')+' · '+booking.bookingId;
    const combined=combinedById.get(booking.bookingId);
+   const sourceStatus=String(booking.status||'').trim();
    const combinedText=document.createElement('p');combinedText.className='attendance-state';
    const item={element:card,state:combined?.attendanceState||null,attendanceError:combined?.attendanceError===true,
     search:((booking.dogName||'')+' '+booking.bookingId).toLocaleLowerCase('ko-KR')};
+   const mismatch=document.createElement('p');mismatch.className='attendance-mismatch';
+   let confirmed=false,writeDenied=false;
    const renderAttendance=()=>{
     combinedText.textContent='등하원: '+(item.attendanceError?'출석 기록 확인 필요':(item.state||'조회 중'));
     combinedText.dataset.state=item.state||'';
+    const note=combined?.attendanceWriteAllowed===false?'이 예약은 출석 저장 허용 대상이 아닙니다.':
+     !['예약','등원 중','하원 완료'].includes(sourceStatus)?'예약 원장 상태를 확인해 주세요.':
+     item.state&&sourceStatus!==item.state?'예약 원장과 출석 기록의 상태가 다릅니다.':'';
+    mismatch.textContent=note;mismatch.hidden=!note;
+    const canWrite=confirmed&&!writeDenied&&!activeAttendance.has(booking.bookingId)&&
+     combined?.attendanceWriteAllowed!==false&&['예약','등원 중'].includes(sourceStatus);
+    inButton.disabled=!canWrite||item.state!=='예약';outButton.disabled=!canWrite||item.state!=='등원 중';
    };
-   renderAttendance();
    const status=document.createElement('p');status.textContent='예약 원장: '+(booking.status||'상태 미등록')+' (별도 관리)';
    const reviewText=document.createElement('p');reviewText.className='status';reviewText.textContent=statusText[review];
    const button=document.createElement('button');button.type='button';button.textContent='등원 요청사항 확인';
@@ -79,17 +93,17 @@ async function loadList(){
    const attendanceUrl='/api/staff/bookings/'+encodeURIComponent(booking.bookingId)+'/attendance';
    const inButton=document.createElement('button'),outButton=document.createElement('button');
    inButton.type='button';outButton.type='button';inButton.textContent='등원 처리 (테스트)';outButton.textContent='하원 처리 (테스트)';
-   inButton.disabled=true;outButton.disabled=true;
+   renderAttendance();
    const showAttendance=v=>{
-    if(!['예약','등원 중','하원 완료'].includes(v?.state))throw Error('Invalid attendance response');
-    attendance.textContent=(v.checkIn?'등원 '+formatKst(v.checkIn.at)+' · '+v.checkIn.staffId:'등원 기록 없음')+(v.checkOut?' / 하원 '+formatKst(v.checkOut.at)+' · '+v.checkOut.staffId:'');
-    item.state=v.state;item.attendanceError=false;
-    inButton.disabled=v.state!=='예약';outButton.disabled=v.state!=='등원 중';
+    if(!['예약','등원 중','하원 완료'].includes(v?.state)||(v.bookingId!==undefined&&v.bookingId!==booking.bookingId))throw Error('Invalid attendance response');
+    attendance.textContent=(v.checkIn?'등원 '+formatKst(v.checkIn.at)+' · '+v.checkIn.staffId:'등원 기록 없음')+
+     (v.checkOut?' / 하원 '+formatKst(v.checkOut.at)+' · '+v.checkOut.staffId:'')+(v.temporary?' (임시 기록)':'');
+    item.state=v.state;item.attendanceError=false;confirmed=true;
     renderAttendance();applyListFilters();renderSummary();
    };
    const update=async(accessToken=token)=>{
     if(seq!==listRequest)return;
-    inButton.disabled=true;outButton.disabled=true;
+    confirmed=false;renderAttendance();
     const fail=message=>{
      item.state=null;item.attendanceError=true;
      attendance.textContent=message;
@@ -99,7 +113,7 @@ async function loadList(){
      const res=await fetch(attendanceUrl,{headers:{Authorization:'Bearer '+accessToken},cache:'no-store',signal:AbortSignal.timeout(10000)});
      if(seq!==listRequest)return;
      if(!res.ok){
-      fail(combined?.attendanceError&&res.status===503?'출석 기록 확인 필요 — 등·하원 처리 차단':'출석 조회 실패 HTTP '+res.status+' — 등·하원 처리 차단');
+      fail((authError(res.status)||(combined?.attendanceError&&res.status===503?'출석 기록 확인 필요':'출석 조회 실패 HTTP '+res.status))+' — 등·하원 처리 차단');
       return;
      }
      const data=await res.json();
@@ -111,47 +125,55 @@ async function loadList(){
     }
    };
    const change=async action=>{
-    if(seq!==listRequest)return;
-    inButton.disabled=true;outButton.disabled=true;
+    if(seq!==listRequest||activeAttendance.has(booking.bookingId)||(action==='check-in'?inButton:outButton).disabled)return;
+    const user=auth.currentUser;
+    if(!user){actionNotice.textContent=authError(401);return;}
+    activeAttendance.add(booking.bookingId);renderAttendance();
     const key=booking.bookingId+'/'+action;
     const pendingId=pendingAttendanceRequests.get(key);
-    const requestId=pendingId||crypto.randomUUID();
-    pendingAttendanceRequests.set(key,requestId);
     actionNotice.textContent='출석 처리 중';
     const unknown='처리 결과를 확인할 수 없습니다.';
     let notice=unknown;
     let accessToken;
+    let accepted=false;
     try{
-     accessToken=await auth.currentUser.getIdToken();
+     try{
+      accessToken=await user.getIdToken();
+      if(seq!==listRequest||auth.currentUser!==user)return;
+      const requestId=pendingId||crypto.randomUUID();
+      pendingAttendanceRequests.set(key,requestId);
+      const res=await fetch(attendanceUrl+'/'+action,{method:'POST',headers:{Authorization:'Bearer '+accessToken,'X-Attendance-Request-Id':requestId},signal:AbortSignal.timeout(10000)});
+      const data=await res.json().catch(()=>null);
+      if(seq!==listRequest)return;
+      accepted=res.ok&&Boolean(data?.attendance);
+      if((res.status>=400&&res.status<500&&res.status!==408)||data?.code==='ATTENDANCE_WRITE_FAILED'){
+       if(!pendingId||data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')pendingAttendanceRequests.delete(key);
+       if(res.status===403)writeDenied=true;
+       if(authError(res.status))notice=authError(res.status);
+       else if(data?.code==='ATTENDANCE_CLOCK_ROLLBACK')notice='서버 시각이 이전 기록보다 일러 저장을 거부했습니다.';
+       else if(data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')notice='중복 요청 ID가 다른 처리와 충돌했습니다.';
+       else if(res.status===409)notice='현재 출석 상태와 요청이 충돌했습니다.';
+       else notice='출석 처리 요청이 거부됐습니다. (HTTP '+res.status+')';
+      }
+     }catch(error){
+      notice=!accessToken?'로그인 상태를 확인해 주세요. 출석 요청을 보내지 못했습니다.':
+       (error?.name==='TimeoutError'?'응답 시간 초과: ':'네트워크 오류: ')+unknown;
+     }
      if(seq!==listRequest)return;
-     const res=await fetch(attendanceUrl+'/'+action,{method:'POST',headers:{Authorization:'Bearer '+accessToken,'X-Attendance-Request-Id':requestId},signal:AbortSignal.timeout(10000)});
-     const data=await res.json().catch(()=>null);
+     const refreshed=await update(accessToken);
      if(seq!==listRequest)return;
-     if(res.ok&&data?.attendance){
-      showAttendance(data.attendance);
-      pendingAttendanceRequests.delete(key);
-      actionNotice.textContent='출석 처리를 확인했습니다.';
-      return;
-     }
-     if((res.status>=400&&res.status<500&&res.status!==408)||data?.code==='ATTENDANCE_WRITE_FAILED'){
-      if(!pendingId||data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')pendingAttendanceRequests.delete(key);
-      if(data?.code==='ATTENDANCE_CLOCK_ROLLBACK')notice='서버 시각이 이전 기록보다 일러 저장을 거부했습니다.';
-      else if(data?.code==='ATTENDANCE_REQUEST_ID_CONFLICT')notice='요청 ID가 다른 처리와 충돌했습니다.';
-      else if(res.status===409)notice='현재 출석 상태와 요청이 충돌했습니다.';
-      else notice='출석 처리 요청이 거부됐습니다. (HTTP '+res.status+')';
-     }
-    }catch(_){
-     if(!accessToken){
-      notice='로그인 상태를 확인해 주세요. 출석 요청을 보내지 못했습니다.';
-      if(seq===listRequest&&!pendingId)pendingAttendanceRequests.delete(key);
-     }
+     const reached=refreshed&&(item.state==='하원 완료'||(action==='check-in'&&item.state==='등원 중'));
+     if(reached)pendingAttendanceRequests.delete(key);
+     actionNotice.textContent=accepted&&reached?'출석 처리를 확인했습니다.':
+      notice+(refreshed?' 현재 출석 상태를 다시 조회했습니다.':' 목록을 다시 조회해 주세요.');
+    }finally{
+     activeAttendance.delete(booking.bookingId);
+     if(seq===listRequest)renderAttendance();
+     else if(auth.currentUser)void loadList();
     }
-    if(seq!==listRequest)return;
-    const refreshed=await update(accessToken);
-    if(seq===listRequest)actionNotice.textContent=notice+(refreshed?' 현재 출석 상태를 다시 조회했습니다.':' 목록을 다시 조회해 주세요.');
    };
    inButton.onclick=()=>change('check-in');outButton.onclick=()=>change('check-out');
-   card.append(name,info,combinedText,status,reviewText,button,attendance,inButton,outButton,actionNotice);root.append(card);
+   card.append(name,info,combinedText,status,reviewText,button,attendance,inButton,outButton,actionNotice,mismatch);root.append(card);
    currentEntries.push(item);
    updates.push(update);
   }
@@ -165,8 +187,33 @@ async function loadList(){
 $('list').onclick=loadList;
 $('today').onclick=()=>{$('visit-date').value=koreaToday();void loadList();};
 $('visit-date').onchange=loadList;const render=v=>{const fields=[['예약번호',v.bookingId],['식사 희망시간',v.mealTime],['사료 지참',v.foodProvided],['매너벨트 지참',v.mannerBelt],['건강 상태',v.condition],['특이사항',v.notes],['요청 버전',v.revision],['직원 확인 버전',v.reviewedRevision],['확인 직원',v.acknowledgedBy||'없음'],['확인 시각',v.acknowledgedAt||'없음']];const root=$('review-fields');root.replaceChildren();for(const [label,value] of fields){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=String(value??'미입력');root.append(dt,dd);}$('review-status').textContent=Number(v.revision)>0&&Number(v.reviewedRevision)===Number(v.revision)?'직원 확인 완료':'직원 확인 대기';$('review').hidden=false;};
-$('login').onsubmit=async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value);show('로그인 성공. 요청을 조회하세요.')}catch(_){show('로그인 실패')}finally{$('password').value=''}};
-$('logout').onclick=async()=>{++listRequest;currentEntries=[];pendingAttendanceRequests.clear();$('booking-list').replaceChildren();$('booking-summary').replaceChildren();await signOut(auth);revision=null;$('ack').disabled=true;$('review').hidden=true;show('로그아웃됨')};
-$('load').onclick=async()=>{revision=null;$('ack').disabled=true;$('review').hidden=true;try{if(!auth.currentUser){show('직원 로그인이 필요합니다.');return;}const token=await auth.currentUser.getIdToken();const r=await fetch(url(),{headers:{Authorization:'Bearer '+token},cache:'no-store'});const d=await r.json();if(!r.ok){show(r.status===401||r.status===403?'인증 또는 접근 권한 확인 필요 (HTTP '+r.status+'). 다시 로그인해 주세요.':'조회 거부 HTTP '+r.status);return;}const v=d.request;if(!v){show('요청사항 없음');return;}revision=v.revision;render(v);show('요청 조회 완료');$('ack').disabled=Number(v.reviewedRevision)===Number(v.revision)}catch(_){show('조회 실패')}};
+function clearStaffView(){
+ ++listRequest;currentEntries=[];pendingAttendanceRequests.clear();
+ $('booking-list').replaceChildren();$('booking-summary').replaceChildren();
+ revision=null;$('ack').disabled=true;$('review').hidden=true;$('review-fields').replaceChildren();
+}
+onAuthStateChanged(auth,user=>{
+ clearStaffView();
+ if(user)void loadList();
+ else $('booking-list').textContent='직원 로그인이 필요합니다.';
+});
+$('login').onsubmit=async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value);show('로그인 성공')}catch(_){show('로그인 실패')}finally{$('password').value=''}};
+$('logout').onclick=async()=>{clearStaffView();await signOut(auth);show('로그아웃됨')};
+$('load').onclick=async()=>{
+ revision=null;$('ack').disabled=true;$('review').hidden=true;
+ const user=auth.currentUser,requestUrl=url();
+ if(!user){show('직원 로그인이 필요합니다.');return;}
+ try{
+  const token=await user.getIdToken();
+  if(auth.currentUser!==user)return;
+  const r=await fetch(requestUrl,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!r.ok){if(auth.currentUser===user)show(authError(r.status)||'조회 거부 HTTP '+r.status);return;}
+  const d=await r.json();
+  if(auth.currentUser!==user||url()!==requestUrl)return;
+  const v=d.request;
+  if(!v){show('요청사항 없음');return;}
+  revision=v.revision;render(v);show('요청 조회 완료');$('ack').disabled=Number(v.reviewedRevision)===Number(v.revision);
+ }catch(_){if(auth.currentUser===user)show('조회 실패');}
+};
 $('ack').onclick=async()=>{if(revision===null)return;$('ack').disabled=true;try{const token=await auth.currentUser.getIdToken();const r=await fetch(url()+'/acknowledge',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:revision})});show(r.ok?'확인 처리 완료. 다시 조회하세요.':r.status===409?'요청이 수정되었습니다. 다시 조회해 주세요.':r.status===401||r.status===403?'인증 또는 접근 권한 확인 필요 (HTTP '+r.status+'). 다시 로그인해 주세요.':'확인 실패 HTTP '+r.status+' — 다시 조회하세요.')}catch(_){show('서버 연결 실패')}};
 </script></html>

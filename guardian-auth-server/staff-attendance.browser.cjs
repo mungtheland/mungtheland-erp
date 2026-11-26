@@ -22,13 +22,20 @@ const sdk='https://www.gstatic.com/firebasejs/11.10.0/';
 const modules={
  [sdk+'firebase-app.js']:'export const initializeApp = config => ({config});',
  [sdk+'firebase-auth.js']:`
-  const auth={currentUser:null};
+  const fixtureUser={getIdToken:async()=> 'browser-fixture-token'};
+  const auth={currentUser:sessionStorage.getItem('fixture-staff-session')?fixtureUser:null};
+  let listener;
   export const getAuth=()=>auth;
+  export function onAuthStateChanged(instance,callback){
+   if(instance!==auth)throw Error('Invalid fixture auth');
+   listener=callback;queueMicrotask(()=>callback(auth.currentUser));
+  }
   export async function signInWithEmailAndPassword(instance,email,password){
    if(instance!==auth || email!=='staff@example.invalid' || password!=='fixture-only')throw Error('Invalid fixture login');
-   auth.currentUser={getIdToken:async()=> 'browser-fixture-token'};
+   sessionStorage.setItem('fixture-staff-session','active');
+   auth.currentUser=fixtureUser;listener?.(auth.currentUser);
   }
-  export async function signOut(){auth.currentUser=null;}
+  export async function signOut(){sessionStorage.removeItem('fixture-staff-session');auth.currentUser=null;listener?.(null);}
  `
 };
 
@@ -152,12 +159,14 @@ async function openStaffBrowser(t,origin,routeErrors=[],failRequest=()=>false){
  const notice=(id,expected)=>`(${card(id)})?.querySelector('.attendance-action')?.textContent.includes(${JSON.stringify(expected)})`;
  const buttons=(id,inDisabled,outDisabled)=>`JSON.stringify([...( ${card(id)} )?.querySelectorAll('button')||[]].slice(1).map(button=>button.disabled))===${JSON.stringify(JSON.stringify([inDisabled,outDisabled]))}`;
 
- return {evaluate,check,input,click,card,count,summary,visible,detail,notice,buttons,pageErrors};
+ const reload=()=>cdp.send('Page.reload');
+ return {evaluate,check,input,click,card,count,summary,visible,detail,notice,buttons,pageErrors,reload};
 }
 
 if(require.main===module)test('Chromium staff attendance workflow with isolated fixtures',{timeout:45000},async t=>{
  const html=await readFile(join(__dirname,'staff-local-test.html'));
  let recover=false, normalState='예약', blockNextRead=false;
+ let otherPostStatus=401;
  const checkInRequests=[];
  let checkOutRequest;
  const routeErrors=[],requests=[];
@@ -214,6 +223,10 @@ if(require.main===module)test('Chromium staff attendance workflow with isolated 
      send(503,{code:'ATTENDANCE_OUTCOME_UNKNOWN'});return;
     }
    }
+   if(req.method==='POST'&&kind==='attendance'&&id==='RSV-OTHER'&&action==='check-in'){
+    send(otherPostStatus,otherPostStatus===200?{attendance:{state:'등원 중'}}:{});
+    return;
+   }
   }
   routeErrors.push('Unexpected fixture request: '+req.method+' '+req.url);
   send(404,{});
@@ -269,6 +282,20 @@ if(require.main===module)test('Chromium staff attendance workflow with isolated 
   await input('#booking-search','','input');
   await input('#visit-date',otherDate,'change');
   await check([count(1),visible('RSV-OTHER'),buttons('RSV-OTHER',false,true),summary(1,1,0,0,0)].join(' && '),'other date cards and summary');
+ });
+ await t.test('write errors are distinct and success requires a server read confirming the new state',async()=>{
+  const checkIn=()=>evaluate(`(${card('RSV-OTHER')}).querySelectorAll('button')[1].click()`);
+  await checkIn();
+  await check(notice('RSV-OTHER','로그인이 만료됐습니다.'),'expired staff token');
+  otherPostStatus=403;
+  await checkIn();
+  await check([notice('RSV-OTHER','직원 접근 권한이 거부됐습니다.'),buttons('RSV-OTHER',true,true)].join(' && '),'denied write');
+  await click('#list');
+  await check(buttons('RSV-OTHER',false,true),'refresh restores eligible action');
+  otherPostStatus=200;
+  await checkIn();
+  await check([notice('RSV-OTHER','처리 결과를 확인할 수 없습니다.'),
+   buttons('RSV-OTHER',false,true),summary(1,1,0,0,0)].join(' && '),'GET prevails over optimistic POST body');
  });
  assert.deepEqual(routeErrors,[],'test fixture routing');
  assert.deepEqual(pageErrors,[],'uncaught product JavaScript errors');

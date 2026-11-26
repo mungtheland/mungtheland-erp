@@ -52,7 +52,7 @@ test('attendance cards isolate detail errors and synchronize summary, filters an
  };
  vm.runInNewContext(script,{
   document:{getElementById:element,createElement:()=>new Element()},
-  initializeApp:()=>({}),getAuth:()=>({currentUser:{getIdToken:async()=>'mock'}}),fetch,
+  initializeApp:()=>({}),getAuth:()=>({currentUser:{getIdToken:async()=>'mock'}}),onAuthStateChanged:()=>{},fetch,
   AbortSignal,crypto:require('node:crypto')
  });
  const visitDate=element('visit-date'),filter=element('attendance-filter');

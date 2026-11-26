@@ -15,7 +15,10 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
   if(!bearer){send(401,{error:'Authentication required'});return true;}
   let principal;
   try{principal=await authenticateStaff(bearer[1]);}
-  catch(_){send(403,{error:'Access denied'});return true;}
+  catch(error){
+   if(error?.code==='AUTH_TOKEN_EXPIRED'){send(401,{error:'Authentication expired',code:'AUTH_TOKEN_EXPIRED'});return true;}
+   send(403,{error:'Access denied'});return true;
+  }
   if(!principal||principal.role!=='staff'||principal.status!=='active'){send(403,{error:'Access denied'});return true;}
   if(ack&&!writeEnabled){send(503,{error:'Test write not enabled'});return true;}
   if(transition&&attendanceWriteBookingId!==undefined&&attendance[1]!==attendanceWriteBookingId){
@@ -27,15 +30,16 @@ function createStaffArrivalHttpHandler({authenticateStaff,staffArrival,bookingRe
     if(!bookingRepository||typeof bookingRepository.listForStaff!=='function')throw Error('Listing unavailable');
     const bookings=await bookingRepository.listForStaff();
     const combined=staffAttendance?await Promise.all(bookings.map(async booking=>{
+     const writeScope=attendanceWriteBookingId===undefined?{}:{attendanceWriteAllowed:booking.bookingId===attendanceWriteBookingId};
      try{
       const {state}=await staffAttendance.get(principal,booking.bookingId);
-      return {bookingId:booking.bookingId,...reconcileBookingStatus(booking.status,state)};
+      return {bookingId:booking.bookingId,...reconcileBookingStatus(booking.status,state),...writeScope};
      }catch(err){
       const invalidRecord=['INVALID_ATTENDANCE_HISTORY','INVALID_ATTENDANCE_DOCUMENT'].includes(err.code)
        ||(err.code==null&&['Invalid attendance history','Invalid attendance document'].includes(err.message));
       if(!invalidRecord)throw err;
       process.stderr.write('[staff-test] ATTENDANCE_RECORD_REVIEW bookingId='+booking.bookingId+'\n');
-      return {bookingId:booking.bookingId,sourceStatus:booking.status,attendanceState:null,displayStatus:'출석 기록 확인 필요',mismatch:true,reason:'INVALID_ATTENDANCE_HISTORY',needsReview:true,attendanceError:true};
+      return {bookingId:booking.bookingId,sourceStatus:booking.status,attendanceState:null,displayStatus:'출석 기록 확인 필요',mismatch:true,reason:'INVALID_ATTENDANCE_HISTORY',needsReview:true,attendanceError:true,...writeScope};
      }
     })):null;
     send(200,{bookings,...(combined?{combined}:{})});

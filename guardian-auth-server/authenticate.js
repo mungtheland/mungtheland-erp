@@ -20,6 +20,8 @@ function createGuardianAuthenticator({firebaseAuth,accountStore,projectId,onDiag
    // Diagnostic codes only; never log the error message, stack, token, UID, or email.
    const code=typeof error?.code==='string'?error.code.replace(/[^a-zA-Z0-9/_-]/g,'').slice(0,80):'UNKNOWN';
    diagnostic('FIREBASE_ERROR_CODE_'+(code||'UNKNOWN'));
+   if(error?.code==='auth/id-token-expired')
+    throw Object.assign(Error('Authentication failed'),{code:'AUTH_TOKEN_EXPIRED'});
    throw Error('Authentication failed');
   }
   if(!claims||claims.aud!==projectId||claims.iss!==`https://securetoken.google.com/${projectId}`||

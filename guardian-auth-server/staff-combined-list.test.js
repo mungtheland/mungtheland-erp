@@ -36,3 +36,15 @@ test('listing fails closed if attendance read fails; never reports an invented s
  assert.equal(response.status,500);
  assert.equal(response.body.error,'Booking list unavailable');
 });
+
+test('restricted attendance configuration identifies the only writable booking',async()=>{
+ const response=await request(createStaffArrivalHttpHandler({
+  authenticateStaff:async()=>principal,
+  bookingRepository:{listForStaff:async()=>[...bookings,{...bookings[0],bookingId:'RSV-TEST-002'}]},
+  staffAttendance:{get:async()=>({state:'예약'})},attendanceWriteBookingId:'RSV-TEST-001'
+ }));
+ assert.equal(response.status,200);
+ assert.deepEqual(response.body.combined.map(({bookingId,attendanceWriteAllowed})=>[bookingId,attendanceWriteAllowed]),[
+  ['RSV-TEST-001',true],['RSV-TEST-002',false]
+ ]);
+});

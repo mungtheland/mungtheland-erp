@@ -33,7 +33,7 @@ async function serveFixture(){
  assert.throws(()=>net.connect({host:'firestore.googleapis.com',port:443}),/Blocked non-emulator/);
  const client=emulatorClient();
  const html=await readFile(join(__dirname,'staff-local-test.html'));
- let fault,failCommit=false;
+ let fault,failCommit=false,releaseResponse;
  const posts=[];
  const store={...client.store,async commitTransition(args){
   if(failCommit){failCommit=false;throw Error('Fixture failure before commit');}
@@ -61,6 +61,10 @@ async function serveFixture(){
     const mode=fault.mode;fault=null;
     if(mode==='stall')return; // The browser aborts this request; it never reaches the handler.
     if(mode==='before-commit')failCommit=true;
+    if(mode==='hold-response'){
+     const end=res.end.bind(res);
+     res.end=body=>{releaseResponse=()=>end(body);return res;};
+    }
     if(mode==='lost-response'){
      // Break the response body only after the real handler has completed the commit.
      const writeHead=res.writeHead.bind(res),end=res.end.bind(res);
@@ -84,6 +88,10 @@ async function serveFixture(){
   try{
    let data;
    if(operation==='fault')fault=value;
+   else if(operation==='release-response'){
+    assert.ok(releaseResponse);
+    const release=releaseResponse;releaseResponse=undefined;release();
+   }
    else if(operation==='posts')data=posts;
    else if(operation==='document'){
     assert.ok(bookings.some(booking=>booking.bookingId===value));
@@ -157,7 +165,7 @@ if(require.main===module&&process.argv[2]==='server'){
    assert.ok(droppedRequestId);
    return true;
   });
-  const {check,click,input,evaluate,card,buttons,notice,summary,pageErrors}=browser;
+  const {check,click,input,evaluate,card,buttons,notice,summary,pageErrors,reload}=browser;
   const browserClick=(key,action)=>evaluate(`(${card(fixtureId(key))}).querySelectorAll('button')[${action==='check-in'?1:2}].click()`);
   const record=(key,server=fixture)=>server.call('document',fixtureId(key));
   const posts=(key,action)=>fixture.call('posts').then(all=>all.filter(post=>post.path===attendUrl(fixtureId(key))+'/'+action));
@@ -191,7 +199,15 @@ if(require.main===module&&process.argv[2]==='server'){
    await checkUi(buttons(id,false,true),summary(6,6,0,0,0));
    assert.equal((await post('NORMAL','check-out')).status,409);
    assert.equal(await record('NORMAL'),null);
-   await browserClick('NORMAL','check-in');
+   await fixture.call('fault',{path:attendUrl(id)+'/check-in',mode:'hold-response'});
+   await evaluate(`(()=>{
+    const button=(${card(id)}).querySelectorAll('button')[1];
+    button.click();
+    button.onclick(); // Exercise the action guard as well as the disabled button.
+   })()`);
+   await click('#list');
+   await checkUi(state('NORMAL','등원 중'),buttons(id,true,true),summary(6,5,1,0,0));
+   await fixture.call('release-response');
    await checkUi(state('NORMAL','등원 중'),buttons(id,true,false),summary(6,5,1,0,0));
    assert.equal((await assertEvents('NORMAL',['check-in'])).state,'등원 중');
    const requests=await posts('NORMAL','check-in');
@@ -262,6 +278,20 @@ if(require.main===module&&process.argv[2]==='server'){
    assert.deepEqual(await Promise.all(keys.map(key=>record(key))),original);
    await click('#list');
    await checkUi(state('NORMAL','하원 완료'),state('RACE','등원 중'),state('FAILED','예약'),summary(6,1,4,1,0));
+  });
+  await t.test('page reload and staff re-login restore saved state with Sheets status shown separately',async()=>{
+   const finalState=()=>checkUi(state('NORMAL','하원 완료'),buttons(fixtureId('NORMAL'),true,true),
+    `(${card(fixtureId('NORMAL'))})?.textContent.includes('예약 원장: 예약')`,
+    `(${card(fixtureId('NORMAL'))})?.querySelector('.attendance-mismatch').textContent.includes('상태가 다릅니다')`);
+   const previous=await evaluate('performance.timeOrigin');
+   await reload();
+   await check(`performance.timeOrigin!==${previous}&&typeof document.querySelector('#login')?.onsubmit==='function'`,'reloaded staff UI');
+   await input('#visit-date',date,'change');
+   await finalState();
+   await click('#logout');
+   await check("document.querySelector('#booking-list').textContent.includes('직원 로그인이 필요합니다.')",'staff data cleared at logout');
+   await loginAndLoad();
+   await finalState();
   });
   assert.deepEqual(routeErrors,[]);
   assert.deepEqual(pageErrors,[]);
