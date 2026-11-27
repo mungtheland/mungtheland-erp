@@ -242,7 +242,10 @@ function inspect(configPath = path.join(root, 'pass-issuance-test-app', 'environ
       legacyChanged: !gitUnchanged(['diff', '--quiet', 'HEAD', '--', 'src/PassIssuanceLegacyReader.js']),
       issuanceEntryChanged: !gitUnchanged(['diff', '--quiet', 'HEAD', '--', 'src/Passes.js'])
     };
-    return evaluateEnvironment(config, evidence);
+    return {
+      ...evaluateEnvironment(config, evidence),
+      registrationBlockers: evidence.registrationResult.checks.filter(item => item.status !== 'PASS')
+    };
   } finally {
     fs.rmSync(outputRoot, { recursive: true, force: true });
   }

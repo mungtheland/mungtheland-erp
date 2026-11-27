@@ -66,3 +66,27 @@ The initialization plan does not create or approve the separate pass-balance tab
 Before an approved action, record the target resource references, reviewer, recovery owner, fixture request allowlist, expected row/column counts, and before snapshot. Afterward, compare the V2 tab title, exact 16 headers, one header row, zero or explicitly approved synthetic rows, pass/ledger linkage, and audit evidence.
 
 On an ID, owner, URL, ACL, schema, or row-count mismatch, stop immediately. Do not switch to the existing ERP or Guardian resources. On timeout or ambiguous result, perform read-only verification before any separately approved continuation. Preserve partial resources and evidence. There is no automatic cleanup or rollback; any removal requires a separate explicit approval and a named operator.
+
+## Stage 69 evidence and gate diagnostics
+
+Run `node scripts/check-pass-issuance-environment.cjs pass-issuance-test-app/environment.local.json`. The outer checklist covers release readiness and the nested `registrationBlockers` lists the unresolved registration checks with stable reason codes. A local ID comparison against an empty production deny list establishes only that the configured list contains no collision. Record coverage separately.
+
+| Local fields | Evidence required |
+| --- | --- |
+| `evidence.dedicatedAppsScriptProjectConfirmed`, `evidence.dedicatedWorkbookConfirmed`, `isolationEvidence.ownerAccountMatches` | Read-only project and workbook metadata matched to the configured IDs, resource types, and designated owner. |
+| `isolationEvidence.reviewStatus` and its dedicated, synthetic-only, and no-shared-source booleans, plus `evidence.ownershipAndIsolationApproved` | An operator's documented review of resource separation, permitted execution identities, source-data boundaries, and the before snapshot. Record `OPERATOR_ATTESTED` only after that review. Each checklist keeps its own evidence reference. |
+| `permissionReview`, `permissionScopeProfile`, `evidence.permissionScopeReviewed` | A reviewed runtime identity equal to the designated owner, one editor per resource equal to that owner, exactly the Sheets OAuth scope, disabled web-app access and GitHub deployment, and Google-managed token storage. The validator requires `REVIEWED`, `DEDICATED_SCRIPT_SINGLE_TEST_WORKBOOK`, `DISABLED`, and `GOOGLE_MANAGED_ONLY` in the corresponding fields. The current project's requested scopes and the intended runtime's effective authorization are separate observations. |
+| `approvalReferences.A`, `approvalReference`, `approvalReferences.B`, `recoveryOwner`, `auditPolicyVersion` | The creation approval reference A must equal `approvalReference`. Record the separate initialization reference B, named recovery operator, and audit policy version. |
+
+The referenced evidence and approval identifiers used by registration have 3–128 characters. Start with an ASCII letter or digit and use only ASCII letters, digits, periods, underscores, colons, or hyphens. Keep raw ACLs and private comparison material outside Git. A diagnostic can appear in both checklists because the release gate and registration validator check separate declarations. Keep both until they can use the same reviewed evidence without weakening either gate.
+
+### Private deployment target comparison
+
+The manual GitHub workflow injects the actual Script ID from a secret and builds its own clasp configuration. GitHub's secret API exposes metadata, so repository inspection can verify the source of the target but cannot verify its value. An authorized maintainer can compare the actual currently configured value from its controlled source against the dedicated project ID in a private session. Record only the outcome (different, same, or unverified), workflow and revision, evidence date, and reviewer reference. If the private source cannot be tied to the currently configured secret, leave the comparison unverified. Do not run the deployment workflow for this check or publish either the secret value or a derivative.
+
+### Dedicated-resource recovery
+
+1. Record the two exact IDs from the ignored local configuration and confirm the canonical URLs and owner. The only recovery targets are the dedicated issuance-proof workbook and standalone script. Exclude existing ERP and Guardian workbooks, scripts, deployments, and data from recovery, including as sources for restoration.
+2. Before an approved operation, retain a private, read-only baseline with capture time, reviewer, workbook tab inventory and dimensions, nonempty row counts, ordered header digest where applicable, and the dedicated script revision, manifest, deployment summary and visible trigger count. Capture counts and checksums in the incident record without customer data or credentials.
+3. On timeout, partial creation, target mismatch, or unexpected data, stop. Preserve both resources and compare current metadata and counts with the baseline. A missing or mismatched baseline requires review before any action. Record the attempted operation and the readback result.
+4. The named recovery operator determines the exact dedicated target and remediation from the evidence. Require separate explicit approval for any rollback, deletion, reinitialization, or deployment. Keep the safe switches in place during investigation and record an independent readback and closure reference after an approved remediation.

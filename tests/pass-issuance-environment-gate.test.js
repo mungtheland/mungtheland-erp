@@ -118,6 +118,9 @@ assert.equal(inspected.deployment.status, 'BLOCKED');
 assert.equal(inspected.remoteCalls, 0);
 assert.equal(inspected.writesPerformed, 0);
 assert.equal(inspected.checks.find(item => item.name === 'manual-deploy-workflow-review').status, 'NEEDS_APPROVAL');
+assert.ok(inspected.registrationBlockers.some(item => item.reason === 'OWNER_MATCH_EVIDENCE_MISSING'));
+assert.ok(inspected.registrationBlockers.some(item => item.reason === 'LEDGER_INITIALIZATION_APPROVAL_MISSING'));
+assert.ok(inspected.registrationBlockers.every(item => item.status !== 'PASS'));
 const gateText = JSON.stringify(inspected);
 assert.ok(!gateText.includes('SYNTHETIC_SCRIPT_ID_000000000001'));
 
