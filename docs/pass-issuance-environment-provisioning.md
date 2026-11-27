@@ -86,6 +86,8 @@ The manual GitHub workflow injects the actual Script ID from a secret and builds
 
 ### Dedicated-resource recovery
 
+For Stage 69, the user designated a business co-owner to review the dedicated issuance-proof environment and coordinate its recovery. The assignee is recorded in the ignored local `recoveryOwner` field. The assignment covers reviewing the baseline, preserving incident evidence, identifying the exact dedicated target and proposed recovery action, and coordinating independent readback. Approvals A and B remain pending and require separate decisions.
+
 1. Record the two exact IDs from the ignored local configuration and confirm the canonical URLs and owner. The only recovery targets are the dedicated issuance-proof workbook and standalone script. Exclude existing ERP and Guardian workbooks, scripts, deployments, and data from recovery, including as sources for restoration.
 2. Before an approved operation, retain a private, read-only baseline with capture time, reviewer, workbook tab inventory and dimensions, nonempty row counts, ordered header digest where applicable, and the dedicated script revision, manifest, deployment summary and visible trigger count. Capture counts and checksums in the incident record without customer data or credentials.
 3. On timeout, partial creation, target mismatch, or unexpected data, stop. Preserve both resources and compare current metadata and counts with the baseline. A missing or mismatched baseline requires review before any action. Record the attempted operation and the readback result.
