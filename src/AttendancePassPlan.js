@@ -1,4 +1,5 @@
 /** Shared attendance eligibility rules. This file has no workbook or network access. */
+const mdPassCatalogApi_=typeof module!=='undefined'?require('./PassCatalog'):null;
 function mdVerifyPassBalance_(history,passId,total,used,remaining){
   let cursor=total;
   const ids=new Set();
@@ -21,7 +22,7 @@ function mdPassDay_(value,formatDay){
   return Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===value?value:null;
 }
 
-function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,productKinds,formatDay,today,attendanceState,strictCatalog=false}){
+function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,productCatalog,catalogVersion,formatDay,today,attendanceState}){
   const review=reason=>({status:'NEEDS_REVIEW',reason});
   const visit=mdPassDay_(b[1],formatDay);
   const eventDate=new Date(event.at);
@@ -56,13 +57,14 @@ function mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope,p
   try{mdVerifyPassBalance_(history,linked,total,used,remaining);}
   catch(error){return review(error.message==='PASS_BALANCE_MISMATCH'?'PASS_BALANCE_MISMATCH':'PASS_HISTORY_MISMATCH');}
 
-  const productId=String(p[2]||'');
-  const definition=productId&&productKinds&&Object.prototype.hasOwnProperty.call(productKinds,productId)?productKinds[productId]:null;
-  const kind=typeof definition==='string'?definition:definition?.kind;
-  if(kind==='DAY'&&deduction==='미차감'&&!bookingHistory.length)return {status:'NOT_REQUIRED',reason:'DAY_PASS'};
-  if(kind!=='RECURRING')return review('PASS_PRODUCT_UNCONFIRMED');
-  if(![8,12,16,20].includes(total)||((strictCatalog||typeof definition==='object')&&definition.total!==total))
-    return review('PASS_RECURRING_COUNT_UNCONFIRMED');
+  const catalogDecision=mdPassCatalogApi_?
+    mdPassCatalogApi_.mdResolvePassCatalogDeduction_({catalog:productCatalog,productId:String(p[2]||''),totalUses:total,expectedVersion:catalogVersion}):
+    mdResolvePassCatalogDeduction_({catalog:productCatalog,productId:String(p[2]||''),totalUses:total,expectedVersion:catalogVersion});
+  if(catalogDecision.status==='BLOCKED')return {status:'BLOCKED',reason:catalogDecision.reason};
+  if(catalogDecision.status==='NEEDS_REVIEW')return review(catalogDecision.reason);
+  if(catalogDecision.status==='NOT_REQUIRED'&&deduction==='미차감'&&!bookingHistory.length)
+    return {status:'NOT_REQUIRED',reason:catalogDecision.reason};
+  if(catalogDecision.status!=='ELIGIBLE')return review(catalogDecision.reason||'PASS_PRODUCT_UNCONFIRMED');
 
   if(previouslyCharged){
     const automaticRows=bookingHistory.filter(row=>row[2]==='차감'&&row[8]==='AUTO_ATTENDANCE');

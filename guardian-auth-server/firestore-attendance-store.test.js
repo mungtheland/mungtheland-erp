@@ -230,8 +230,8 @@ for(const [label,options,modify,expected] of [
  ['changed date',{date:'2026-11-23'},()=>{},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
  ['cancelled reservation',{},f=>{f.booking[5]='예약취소';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
  ['invalid Sheets attendance',{},f=>{f.booking[8]='등원 중';},/PASS_BOOKING_ATTENDANCE_MISMATCH/],
- ['unknown product',{product:''},()=>{},/PASS_PRODUCT_UNCONFIRMED/],
- ['unsupported recurring count',{},f=>{f.pass[5]=9;f.pass[7]=9;},/PASS_RECURRING_COUNT_UNCONFIRMED/],
+ ['unknown product',{product:'UNKNOWN'},()=>{},/PRODUCT_NOT_IN_CATALOG/],
+ ['unsupported recurring count',{},f=>{f.pass[5]=9;f.pass[7]=9;},/PRODUCT_TOTAL_USES_MISMATCH/],
  ['missing balance provenance',{remaining:7},()=>{},/PASS_BALANCE_MISMATCH/],
  ['mismatched booking flag',{},f=>{f.booking[9]='차감';},/PASS_DEDUCTION_FLAG_MISMATCH/]
 ]){

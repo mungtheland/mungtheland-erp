@@ -15,17 +15,16 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
  if(![verifyStaff,verifyService,readAttendance,readLedger,clock].every(fn=>typeof fn==='function')||
    !Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>30_000)
   throw Error('A bounded read-only diagnostic requires explicit verifiers and readers');
- const {scope,workbookId,projectId,databaseId,region,collection,issuer,audience,subject,bookingIds,historyColumns,productKinds}=binding||{};
+ const {scope,workbookId,projectId,databaseId,region,collection,issuer,audience,subject,bookingIds,historyColumns,productKinds,productCatalog,catalogVersion}=binding||{};
  if(![scope,workbookId,projectId,databaseId,region,collection,issuer,audience,subject].every(x=>typeof x==='string'&&x.trim())||
    !Array.isArray(bookingIds)||!bookingIds.length||!bookingIds.every(id=>/^RSV-[A-Z0-9-]{1,64}$/.test(id))||
    !Array.isArray(historyColumns)||historyColumns.length!==10||
    ![...historyColumns].every((entry,index)=>index===1?entry===null:typeof entry==='string'&&entry.trim())||
-   !productKinds||typeof productKinds!=='object'||Array.isArray(productKinds))
+   !productKinds||typeof productKinds!=='object'||Array.isArray(productKinds)||
+   !productCatalog||typeof productCatalog!=='object'||Array.isArray(productCatalog)||
+   !Number.isSafeInteger(catalogVersion)||catalogVersion!==productCatalog.catalogVersion||!Array.isArray(productCatalog.products))
   throw Error('Explicit diagnostic scope and schema required');
  const allowedBookings=new Set(bookingIds);
- const kinds=Object.fromEntries(Object.entries(productKinds).map(([id,definition])=>[
-  id,definition&&typeof definition==='object'?{kind:definition.kind,total:definition.total}:definition
- ]));
  const expectedHistoryColumns=[...historyColumns];
  const attendanceTarget=Object.freeze({projectId,databaseId,region,collection});
  const formatDay=date=>seoulDay.format(date);
@@ -118,7 +117,7 @@ function createPassDeductionDryRun({verifyStaff,verifyService,readAttendance,rea
   let result;
   try{
    result=mdPlanAttendancePass_({bookingId,booking,pass:passRows[0],history:history.rows,event,scope,
-    productKinds:kinds,formatDay,today:formatDay(new Date(clock())),attendanceState:state,strictCatalog:workbook.snapshot!==undefined});
+    productCatalog,catalogVersion,formatDay,today:formatDay(new Date(clock())),attendanceState:state});
   }catch{return blocked('LEDGER_DATA_INVALID');}
   const claim=document.passDeduction;
   if(claim!==undefined&&(claim?.key!==scope+':'+bookingId||claim.eventId!==eventId||

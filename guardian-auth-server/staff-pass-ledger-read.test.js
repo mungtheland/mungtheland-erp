@@ -153,6 +153,7 @@ test('D - each approved product ID has exactly its expected recurring count',asy
  for(const total of [8,12,16,20]){
   const {fixture,run}=setup();
   Object.assign(fixture.pass,{2:'PRODUCT-'+total,5:total,7:total});
+  fixture.ports.binding.productCatalog.products.find(product=>product.productId==='PRODUCT-'+total).totalUses=total;
   const result=await run();
   assert.equal(result.status,'ELIGIBLE');
   assert.equal(result.projection.remainingAfter,total-1);
@@ -161,9 +162,9 @@ test('D - each approved product ID has exactly its expected recurring count',asy
 
 test('D - unknown product or mismatched SKU-count mapping is not eligible',async()=>{
  for(const [update,reason] of [
-  [f=>{f.pass[2]='UNKNOWN';},'PASS_PRODUCT_UNCONFIRMED'],
-  [f=>{f.pass[5]=12;f.pass[7]=12;},'PASS_RECURRING_COUNT_UNCONFIRMED'],
-  [f=>{f.ports.binding.productKinds['PRODUCT-8']='RECURRING';},'PASS_RECURRING_COUNT_UNCONFIRMED']
+  [f=>{f.pass[2]='UNKNOWN';},'PRODUCT_NOT_IN_CATALOG'],
+  [f=>{f.pass[5]=12;f.pass[7]=12;},'PRODUCT_TOTAL_USES_MISMATCH'],
+  [f=>{f.ports.binding.productCatalog.products.find(product=>product.productId==='PRODUCT-8').totalUses=12;},'PRODUCT_TOTAL_USES_MISMATCH']
  ]){
   const {fixture,run}=setup();
   update(fixture);
@@ -179,7 +180,7 @@ for(const [name,update,status,reason] of [
  ['F - duplicate booking with sparse ranges',f=>{f.workbook.bookings.rows.push([],[],[...f.booking]);},'NEEDS_REVIEW','BOOKING_DUPLICATE'],
  ['G - booking not linked',f=>{f.booking[4]='';},'NEEDS_REVIEW','PASS_NOT_LINKED'],
  ['H - manual deduction is complete',f=>f.markManual(),'COMPLETED','ALREADY_MANUAL'],
- ['I - daily pass excluded',f=>{f.pass[2]='PRODUCT-DAY';},'NOT_REQUIRED','DAY_PASS'],
+ ['I - daily pass excluded',f=>{f.pass[2]='PRODUCT-DAY';},'NOT_REQUIRED','DAYCARE_DAILY'],
  ['J - attendance and booking status mismatch',f=>{f.booking[5]='예약취소';},'NEEDS_REVIEW','PASS_BOOKING_ATTENDANCE_MISMATCH']
 ]){
  test(name,async()=>{

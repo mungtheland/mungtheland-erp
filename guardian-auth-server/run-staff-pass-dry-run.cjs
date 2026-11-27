@@ -15,7 +15,12 @@ function createSyntheticDryRunFixture({projectId='demo-mungtheland-pass'}={}){
   bookingIds:[bookingId],historyColumns:['이력 ID',null,'처리유형','이용권 ID','예약 ID','변동횟수','변경전 잔여','변경후 잔여','처리자','사유'],
   productKinds:{'PRODUCT-DAY':{kind:'DAY'},...Object.fromEntries([8,12,16,20].map(total=>[
    'PRODUCT-'+total,{kind:'RECURRING',total}
-  ]))}
+  ]))},
+  catalogVersion:1,
+  productCatalog:{catalogVersion:1,products:[
+   {productId:'PRODUCT-DAY',productType:'DAYCARE_DAILY',displayName:'Synthetic day pass',totalUses:null,active:true,deductionPolicy:'NOT_APPLICABLE',source:'synthetic-test-fixture',approvalStatus:'APPROVED',version:1},
+   ...[8,12,16,20].map(total=>({productId:'PRODUCT-'+total,productType:'PASS',displayName:'Synthetic recurring pass',totalUses:total,active:true,deductionPolicy:'REGULAR_PASS',source:'synthetic-test-fixture',approvalStatus:'APPROVED',version:1}))
+  ]}
  };
  const event={eventId:'EVT-SYNTHETIC-IN',bookingId,action:'check-in',staffId:'STAFF-SYNTHETIC-050',at:'2026-11-26T10:00:00Z'};
  const booking=[bookingId,'2026-11-26',dogId,'SYNTHETIC_PRIVATE_NAME',passId,'예약','','','미등원','미차감'];

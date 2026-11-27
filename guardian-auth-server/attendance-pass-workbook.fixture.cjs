@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 
-const sources=['OperatorAudit.js','AttendancePassPlan.js','PassAdjust.js'].map(name=>fs.readFileSync(path.join(__dirname,'../src',name),'utf8'));
+const sources=['OperatorAudit.js','PassCatalog.js','AttendancePassPlan.js','PassAdjust.js'].map(name=>fs.readFileSync(path.join(__dirname,'../src',name),'utf8'));
 const dateKst=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'});
 
 function createPassWorkbookFixture({now='2026-11-24T02:00:00Z'}={}){
@@ -16,7 +16,10 @@ function createPassWorkbookFixture({now='2026-11-24T02:00:00Z'}={}){
  const clock=()=>new Date(now);
  const properties=new Map([
   ['MD_ATTENDANCE_PASS_SCOPE','local-sheets'],
-  ['MD_PASS_PRODUCT_KINDS',JSON.stringify({REGULAR:'RECURRING',DAILY:'DAY'})],
+  ['MD_PASS_PRODUCT_CATALOG',JSON.stringify({catalogVersion:1,products:[
+   {productId:'REGULAR',productType:'PASS',displayName:'Synthetic recurring pass',totalUses:8,active:true,deductionPolicy:'REGULAR_PASS',source:'synthetic-test-fixture',approvalStatus:'APPROVED',version:1},
+   {productId:'DAILY',productType:'DAYCARE_DAILY',displayName:'Synthetic daily pass',totalUses:null,active:true,deductionPolicy:'NOT_APPLICABLE',source:'synthetic-test-fixture',approvalStatus:'APPROVED',version:1}
+  ]})],
   ['MD_PASS_CORRECTION_APPROVERS',JSON.stringify({'admin@example.invalid':'PASS-ADMIN-FIXTURE'})]
  ]);
  class FixtureDate extends Date{constructor(...args){super(...(args.length?args:[now]));}}
