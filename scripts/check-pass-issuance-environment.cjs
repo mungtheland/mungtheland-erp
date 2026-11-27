@@ -109,9 +109,13 @@ function gitUnchanged(args) {
   return result.status === 0;
 }
 
+function readJsonConfig(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
+}
+
 function readConfiguredTarget(filePath, key) {
   try {
-    const value = JSON.parse(fs.readFileSync(filePath, 'utf8'))[key];
+    const value = readJsonConfig(filePath)[key];
     return typeof value === 'string' && value ? value : '';
   } catch (_) { return ''; }
 }
@@ -180,7 +184,7 @@ function inspect(configPath = path.join(root, 'pass-issuance-test-app', 'environ
       return evaluateEnvironment({}, { branch: git(['branch', '--show-current']), cwdMatches: path.resolve(process.cwd()) === root });
   }
   let config = {};
-  try { config = JSON.parse(fs.readFileSync(resolvedConfig, 'utf8')); } catch (_) { /* fail closed below */ }
+  try { config = readJsonConfig(resolvedConfig); } catch (_) { /* fail closed below */ }
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pass-issuance-gate-'));
   try {
     const build = buildPassIssuanceTestBundle(path.join(outputRoot, 'bundle'));

@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { evaluateEnvironment, inspect, expectedFiles } = require('../scripts/check-pass-issuance-environment.cjs');
 const { validateSnapshot, validateFixtureFile } = require('../scripts/validate-pass-issuance-v2-snapshot.cjs');
 const schema = require('../scripts/pass-issuance-test-schema.cjs');
@@ -119,6 +120,21 @@ assert.equal(inspected.writesPerformed, 0);
 assert.equal(inspected.checks.find(item => item.name === 'manual-deploy-workflow-review').status, 'NEEDS_APPROVAL');
 const gateText = JSON.stringify(inspected);
 assert.ok(!gateText.includes('SYNTHETIC_SCRIPT_ID_000000000001'));
+
+const bomConfigPath = path.join(__dirname, '..', 'pass-issuance-test-app', `bom-test-${randomUUID()}.local.json`);
+fs.writeFileSync(bomConfigPath, '\uFEFF' + JSON.stringify(baseConfig()), { flag: 'wx' });
+try {
+  const bomResult = inspect(bomConfigPath);
+  for (const name of ['target-ids-configured', 'dry-run-default', 'writes-disabled', 'deployment-disabled']) {
+    assert.equal(bomResult.checks.find(item => item.name === name).status, 'PASS', name);
+  }
+  fs.writeFileSync(bomConfigPath, '\uFEFF{');
+  const malformedResult = inspect(bomConfigPath);
+  assert.equal(malformedResult.status, 'BLOCKED');
+  assert.equal(malformedResult.checks.find(item => item.name === 'target-ids-configured').status, 'BLOCKED');
+} finally {
+  fs.unlinkSync(bomConfigPath);
+}
 
 const normalFixture = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'pass-issuance-test-app', 'fixtures', 'normal-synthetic-issuance.json'), 'utf8'));
 const scenarios = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'pass-issuance-test-app', 'fixtures', 'failure-scenarios.json'), 'utf8'));
