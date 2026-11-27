@@ -4,4 +4,5 @@ node_modules/
 .env
 .env.*
 !.env.example
+/pass-issuance-test-app/environment.local.json
 *.log

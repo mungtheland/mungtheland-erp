@@ -150,4 +150,8 @@ function mdPassIssuancePreflight_(input) {
   };
 }
 
-if (typeof module !== 'undefined') module.exports = { mdPassIssuancePreflight_ };
+if (typeof module !== 'undefined') module.exports = {
+  mdPassIssuancePreflight_,
+  mdPassIssuancePreflightValidateLedgerRows_,
+  mdPassIssuancePreflightValidatePassRows_
+};

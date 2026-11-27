@@ -1,0 +1,16 @@
+{
+  "mode": "SYNTHETIC_SCENARIO_CATALOG_ONLY",
+  "scenarios": [
+    { "id": "normal-issue", "injection": "NONE", "expected": "COMMITTED_SYNTHETIC_ONLY", "autoCleanup": false },
+    { "id": "same-request-retry", "injection": "RESPONSE_LOSS_AFTER_COMMIT", "expected": "RETURN_EXISTING_RESULT", "autoCleanup": false },
+    { "id": "duplicate-payment", "injection": "SAME_PAYMENT_DIFFERENT_REQUEST", "expected": "BLOCKED", "autoCleanup": false },
+    { "id": "lock-timeout", "injection": "LOCK_UNAVAILABLE", "expected": "BLOCKED_NO_WRITES", "autoCleanup": false },
+    { "id": "pending-write-loss", "injection": "AFTER_PENDING_APPEND", "expected": "NEEDS_REVIEW_NO_REISSUE", "autoCleanup": false },
+    { "id": "pass-write-loss", "injection": "AFTER_PASS_APPEND", "expected": "NEEDS_REVIEW_RECONCILE_ONLY", "autoCleanup": false },
+    { "id": "commit-marker-loss", "injection": "BEFORE_COMMITTED_MARKER", "expected": "NEEDS_REVIEW_NO_REISSUE", "autoCleanup": false },
+    { "id": "partial-ledger-only", "injection": "LEDGER_WITHOUT_PASS", "expected": "NEEDS_REVIEW", "autoCleanup": false },
+    { "id": "partial-pass-only", "injection": "PASS_WITHOUT_LEDGER", "expected": "NEEDS_REVIEW", "autoCleanup": false },
+    { "id": "readback-timeout", "injection": "AFTER_FLUSH_BEFORE_READBACK", "expected": "NEEDS_REVIEW_NO_RETRY", "autoCleanup": false },
+    { "id": "manual-recovery", "injection": "OPERATOR_REVIEW_REQUIRED", "expected": "AUDITED_MANUAL_APPROVAL", "autoCleanup": false }
+  ]
+}

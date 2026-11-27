@@ -1,0 +1,66 @@
+{
+  "mode": "SYNTHETIC_FIXTURE_ONLY",
+  "catalog": {
+    "catalogVersion": 4,
+    "products": [
+      {
+        "productId": "SYNTH-PASS-8",
+        "productType": "PASS",
+        "displayName": "Synthetic recurring pass, 8 uses",
+        "totalUses": 8,
+        "active": true,
+        "deductionPolicy": "REGULAR_PASS",
+        "source": "Synthetic fixture only; not a production catalog approval",
+        "approvalStatus": "APPROVED",
+        "version": 4
+      }
+    ]
+  },
+  "request": {
+    "requestId": "SYNTH-ONLY-ISSUE-66001",
+    "productId": "SYNTH-PASS-8",
+    "catalogVersion": 4,
+    "petId": "PET-SYNTH-66001",
+    "guardianId": "GUARD-SYNTH-66001",
+    "paymentStatus": "COMPLETED",
+    "paymentReference": "PAY-SYNTH-66001",
+    "requestedUses": 8,
+    "requestedStartDate": "2026-11-27",
+    "requestedExpiryDate": "2027-11-27",
+    "amount": 80000,
+    "sourceChannel": "synthetic-test"
+  },
+  "verification": {
+    "mode": "SYNTHETIC_FIXTURE",
+    "requestIdentity": {
+      "source": "SYNTHETIC_FIXTURE",
+      "value": "SYNTH-ONLY-ISSUE-66001",
+      "createdBeforeProcessing": true,
+      "persistedForRetry": true,
+      "stableAcrossRetries": true
+    },
+    "pet": {
+      "source": "SYNTHETIC_FIXTURE",
+      "exists": true,
+      "petId": "PET-SYNTH-66001",
+      "guardianId": "GUARD-SYNTH-66001",
+      "relationshipVerified": true,
+      "evidenceRef": "PET-LINK-SYNTH-66001"
+    },
+    "payment": {
+      "source": "SYNTHETIC_FIXTURE",
+      "verified": true,
+      "status": "COMPLETED",
+      "reference": "PAY-SYNTH-66001",
+      "amount": 80000,
+      "evidenceRef": "PAYMENT-RECEIPT-SYNTH-66001"
+    },
+    "issuanceHistory": {
+      "complete": true,
+      "issuanceLedgerStatus": "KNOWN_EMPTY_OR_COMPLETE",
+      "requestIdStatus": "NOT_FOUND",
+      "paymentReferenceStatus": "NOT_FOUND"
+    }
+  },
+  "candidatePassId": "PASS-SYNTH-66001"
+}

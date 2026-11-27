@@ -1,0 +1,23 @@
+{
+  "environmentName": "pass-issuance-isolated-test",
+  "spreadsheetId": "",
+  "scriptId": "",
+  "ledgerTabName": "_\uC774\uC6A9\uAD8C\uBC1C\uAE09\uC6D0\uC7A5V2",
+  "legacyTabName": "_\uC774\uC6A9\uAD8C\uBC1C\uAE09\uC774\uB825",
+  "passTabName": "\uC774\uC6A9\uAD8C\uAD00\uB9AC",
+  "dryRunOnly": true,
+  "enableWrites": false,
+  "allowDeployment": false,
+  "allowedTestRequestPrefix": "SYNTH-ONLY-ISSUE-",
+  "testDataIsolationMode": "DEDICATED_WORKBOOK_REQUIRED",
+  "recoveryOwner": "",
+  "auditPolicyVersion": "DRAFT-1",
+  "permissionScopeProfile": "UNCONFIRMED",
+  "evidence": {
+    "dedicatedAppsScriptProjectConfirmed": false,
+    "dedicatedWorkbookConfirmed": false,
+    "ownershipAndIsolationApproved": false,
+    "permissionScopeReviewed": false,
+    "evidenceReference": ""
+  }
+}
