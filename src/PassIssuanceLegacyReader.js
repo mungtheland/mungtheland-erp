@@ -8,6 +8,8 @@ const MD_PASS_ISSUANCE_LEGACY_HEADERS_ = Object.freeze([
   '판매금액', '할인금액', '결제금액', '결제수단', '승인 담당자', '승인일시', '처리상태'
 ]);
 
+function mdPassIssuanceLegacySheetName_() { return MD_PASS_ISSUANCE_LEGACY_SHEET_; }
+
 function mdPassIssuanceLegacyValidateHeaders_(headers) {
   if (!Array.isArray(headers)) return { valid: false, reason: 'LEGACY_HEADERS_INVALID' };
   if (new Set(headers).size !== headers.length) return { valid: false, reason: 'LEGACY_HEADERS_DUPLICATE' };

@@ -74,9 +74,10 @@ test('spreadsheet adapter maps only the declared tabs and writes only against mo
   appendRow(row){this.grid.push(row);}});
  const ledger=makeSheet(ledgerHeaders),passes=makeSheet(passHeaders),flush={count:0};
  context.MD_SCHEMAS={'이용권관리':passHeaders};context.mdHeaders_=sheet=>sheet.headers;
- context.mdBook_=()=>({getSheetByName:name=>name==='_이용권발급이력'?ledger:name==='이용권관리'?passes:null});
+ const requestedSheetNames=[];context.mdBook_=()=>({getSheetByName:name=>{requestedSheetNames.push(name);return requestedSheetNames.length===1?ledger:passes;}});
  context.SpreadsheetApp={flush:()=>flush.count++};
- const ports=context.mdPassIssuanceSpreadsheetPorts_();const snapshot=ports.readSnapshot();
+ const ports=context.mdPassIssuanceSpreadsheetPorts_();assert.equal(requestedSheetNames[0],context.mdPassIssuanceV2SheetName_());
+ const snapshot=ports.readSnapshot();
  assert.equal(snapshot.schemaValid,true);assert.equal(snapshot.legacyPaymentReferenceCoverage,'INCOMPLETE');
  const row=ports.appendLedger({issuanceRequestId:'REQ-SYNTH-62003',idempotencyKey:'KEY',paymentReference:'PAY-SYNTH-62003',
   productId:'SYNTH-PASS-8',catalogVersion:4,petId:'PET-SYNTH-01',guardianId:'GUARD-SYNTH-01',passId:'PASS-SYNTH-62003',
@@ -99,6 +100,13 @@ test('legacy 13-column issuance tab is rejected without creating or changing she
  context.mdBook_=()=>({getSheetByName:()=>legacySheet,insertSheet(){writes++;throw Error('unexpected sheet creation');}});
  assert.throws(()=>context.mdPassIssuanceSpreadsheetPorts_(),/ISSUANCE_LEDGER_SCHEMA_MISMATCH/);
  assert.equal(writes,0);
+});
+test('V2 writer does not fall back to the legacy issuance tab',()=>{
+ const requested=[];const legacySheet={};
+ context.mdBook_=()=>({getSheetByName:name=>{requested.push(name);return name==='_이용권발급이력'?legacySheet:null;}});
+ assert.throws(()=>context.mdPassIssuanceSpreadsheetPorts_(),/ISSUANCE_LEDGER_TAB_MISSING/);
+ assert.equal(requested[0],context.mdPassIssuanceV2SheetName_());
+ assert.notEqual(requested[0],'_이용권발급이력');
 });
 test('normal issuance records pending, pass, then committed and verifies final pair',()=>{
  const h=harness();const result=h.issue();assert.equal(result.status,'COMMITTED');assert.equal(result.alreadyCommitted,false);

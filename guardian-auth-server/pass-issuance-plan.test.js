@@ -39,7 +39,7 @@ test('approved recurring products create plan-only projections for 8, 12, 16, an
   assert.equal(result.plan.productId,productId);
   assert.equal(result.plan.catalogVersion,3);
   assert.equal(result.plan.idempotencyKey,'PASS-ISSUE:v3:'+result.plan.requestId);
-  assert.deepEqual(result.plan.requiredLedgerWrites,['pass-record','issuance-idempotency-record']);
+  assert.deepEqual(result.plan.requiredLedgerWrites,['pass-record','v2-issuance-ledger-row']);
   assert.ok(result.plan.warnings.includes('NOT_PERSISTED'));
   assert.equal(Object.hasOwn(result.plan,'passId'),false);
   assert.equal(Object.hasOwn(result.plan,'historyId'),false);

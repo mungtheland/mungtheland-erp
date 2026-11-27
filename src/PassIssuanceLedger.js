@@ -2,7 +2,7 @@
 
 // This module is deliberately disconnected from mdRegisterPass and defaults closed.
 const MD_PASS_ISSUANCE_STORAGE_ENABLED_=false;
-const MD_PASS_ISSUANCE_LEDGER_SHEET_='_이용권발급이력';
+const MD_PASS_ISSUANCE_LEDGER_SHEET_='_이용권발급원장V2';
 const MD_PASS_ISSUANCE_LOCK_WAIT_MS_=5000;
 const MD_PASS_ISSUANCE_HEADERS_=Object.freeze([
  '발급요청 ID','멱등성 키','결제 참조','상품 ID','카탈로그 버전','반려견 ID','보호자 ID','이용권 ID',
@@ -11,6 +11,17 @@ const MD_PASS_ISSUANCE_HEADERS_=Object.freeze([
 const MD_PASS_ISSUANCE_STATES_=new Set(['VALIDATED','PENDING','COMMITTED','NEEDS_REVIEW','FAILED_FINAL']);
 
 function mdPassIssuanceEnabled_(){return MD_PASS_ISSUANCE_STORAGE_ENABLED_===true;}
+function mdPassIssuanceV2SheetName_(){return MD_PASS_ISSUANCE_LEDGER_SHEET_;}
+function mdPassIssuanceV2Headers_(){return MD_PASS_ISSUANCE_HEADERS_.slice();}
+function mdPassIssuanceV2Fields_(){return ['issuanceRequestId','idempotencyKey','paymentReference','productId','catalogVersion','petId','guardianId','passId',
+ 'totalUses','issuanceStatus','requestedAt','committedAt','attemptCount','lastErrorCode','sourceChannel','auditReference'];}
+function mdPassIssuanceValidateV2Headers_(headers){
+ if(!Array.isArray(headers))return {valid:false,reason:'V2_HEADERS_INVALID'};
+ if(new Set(headers).size!==headers.length)return {valid:false,reason:'V2_HEADERS_DUPLICATE'};
+ if(headers.length!==MD_PASS_ISSUANCE_HEADERS_.length||MD_PASS_ISSUANCE_HEADERS_.some((header,i)=>headers[i]!==header))
+  return {valid:false,reason:'V2_SCHEMA_MISMATCH'};
+ return {valid:true,reason:'V2_SCHEMA_VALID'};
+}
 
 function mdPassIssuanceExactMatches_(rows,key,value){
  if(!Array.isArray(rows)||typeof key!=='string'||value===undefined||value===null)return [];
@@ -148,12 +159,11 @@ function mdPassIssuanceSpreadsheetPorts_(){
  if(!ledgerSheet||!passSheet)throw Error('ISSUANCE_LEDGER_TAB_MISSING');
  const ledgerHeaders=ledgerSheet.getRange(1,1,1,MD_PASS_ISSUANCE_HEADERS_.length).getDisplayValues()[0];
  const passHeaders=mdHeaders_(passSheet),expectedPassHeaders=MD_SCHEMAS['이용권관리'];
- if(MD_PASS_ISSUANCE_HEADERS_.some((header,i)=>ledgerHeaders[i]!==header)||
+ if(!mdPassIssuanceValidateV2Headers_(ledgerHeaders).valid||
    ledgerSheet.getLastColumn()!==MD_PASS_ISSUANCE_HEADERS_.length||passHeaders.length!==expectedPassHeaders.length||
    expectedPassHeaders.some((header,i)=>passHeaders[i]!==header))throw Error('ISSUANCE_LEDGER_SCHEMA_MISMATCH');
  const rows=(sheet,count)=>sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,count).getValues():[];
- const ledgerFields=['issuanceRequestId','idempotencyKey','paymentReference','productId','catalogVersion','petId','guardianId','passId',
-  'totalUses','issuanceStatus','requestedAt','committedAt','attemptCount','lastErrorCode','sourceChannel','auditReference'];
+ const ledgerFields=mdPassIssuanceV2Fields_();
  const ledgerFromRow=row=>Object.fromEntries(ledgerFields.map((key,i)=>[key,row[i]]));
  const ledgerToRow=record=>ledgerFields.map(key=>record[key]===undefined?'':record[key]);
  return {

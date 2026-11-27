@@ -63,8 +63,8 @@ function mdBuildPassIssuancePlan_({request,catalog,verification}={}){
       requestId,productId,catalogVersion,petId,totalUses:requestedUses,initialUsedUses:0,
       initialRemainingUses:requestedUses,paymentReference,
       idempotencyKey:'PASS-ISSUE:v'+catalogVersion+':'+requestId,
-      requiredLedgerWrites:['pass-record','issuance-idempotency-record'],
-      warnings:['SYNTHETIC_FIXTURE_ONLY','NOT_PERSISTED','ISSUANCE_LEDGER_SCHEMA_NOT_IMPLEMENTED']
+      requiredLedgerWrites:['pass-record','v2-issuance-ledger-row'],
+      warnings:['SYNTHETIC_FIXTURE_ONLY','NOT_PERSISTED','PERSISTENCE_DISABLED']
     }
   };
 }
