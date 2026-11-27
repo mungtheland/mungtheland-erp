@@ -43,6 +43,16 @@ The configuration records project name, workbook title, owner, isolation attesta
 
 Each reference is recorded separately. A reference for one letter cannot satisfy another letter. In Stage 67 all references remain blank and no action is approved by this document.
 
+### Stage 69 approval A record
+
+- Reference `ERP-ISSUANCE-A-20261127-01`
+- Decision recorded on 2026-11-27 KST against baseline `d6e1ffaf00d9d49f4fbfcdb8c833f293653d35bb`
+- Scope covers the existing standalone issuance-proof Apps Script and the existing dedicated issuance-proof workbook, matched to the two exact identifiers supplied with the decision and retained in the ignored local environment configuration. The previously designated review and recovery owner remains responsible for these two resources.
+
+> 멍더랜드 승인 A를 확정합니다. 기존 전용 테스트 Apps Script와 Google Sheets 사용을 승인합니다. 승인 B와 실제 원장 생성은 아직 승인하지 않습니다.
+
+This decision authorizes use of the existing resource pair. New resource creation, V2 initialization, data writes, deployment, and live issuance remain outside its scope. Approval B remains pending. Record the same reference in `approvalReferences.A` and `approvalReference` to satisfy the validator's approval A reference check. Isolation and permission reviews are independent requirements.
+
 ## V2 initialization dry-run
 
 `scripts/plan-pass-issuance-v2-initialization.cjs` reads only the local environment file, repository schema, and explicitly synthetic snapshot fixture. It creates no tab and has no network or Apps Script storage port. A plan returns the exact ordered headers from `PassIssuanceLedger.js`, target tab `_이용권발급원장V2`, one header row, 16 columns, a pre-initialization snapshot checklist, duplicate-tab detection, readback checks, and stop/recovery steps. The target identifier is redacted in output.
