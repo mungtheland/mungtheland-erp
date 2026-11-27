@@ -248,14 +248,18 @@ for(const [label,options,modify,expected] of [
  });
 }
 
-test('day pass and unlinked booking are excluded without affecting the ledger',async()=>{
- for(const options of [{product:'DAILY'},{linked:false}]){
-  const f=passFixture(options);
-  const snapshot=f.workbook.snapshot();
-  assert.equal((await f.checkIn()).passDeductionStatus,'NOT_REQUIRED');
-  assert.equal((await f.open().get(staff,id)).passDeductionStatus,'NOT_REQUIRED');
-  assert.equal(f.workbook.snapshot(),snapshot);
- }
+test('day pass is excluded while an unlinked booking requires review without touching the ledger',async()=>{
+ const day=passFixture({product:'DAILY'});
+ const daySnapshot=day.workbook.snapshot();
+ assert.equal((await day.checkIn()).passDeductionStatus,'NOT_REQUIRED');
+ assert.equal((await day.open().get(staff,id)).passDeductionStatus,'NOT_REQUIRED');
+ assert.equal(day.workbook.snapshot(),daySnapshot);
+
+ const unlinked=passFixture({linked:false});
+ const unlinkedSnapshot=unlinked.workbook.snapshot();
+ assert.equal((await unlinked.checkIn()).passDeductionStatus,'NEEDS_REVIEW');
+ assert.equal((await unlinked.open().get(staff,id)).passDeductionStatus,'NEEDS_REVIEW');
+ assert.equal(unlinked.workbook.snapshot(),unlinkedSnapshot);
 });
 
 test('unconfirmed claim and lost attendance acknowledgement do not dispatch deductions',async()=>{

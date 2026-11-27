@@ -113,8 +113,9 @@ function mdPassAdjust_(data,automatic){
       const event=automatic.command.event;
       const productKinds=JSON.parse(PropertiesService.getScriptProperties().getProperty('MD_PASS_PRODUCT_KINDS')||'{}');
       const plan=mdPlanAttendancePass_({bookingId,booking:b,pass:p,history,event,scope:'local-sheets',productKinds,formatDay,today});
-      // Existing isolated screen semantics stay unchanged for unlinked reservations.
-      if(plan.reason==='PASS_NOT_LINKED'||plan.status==='NOT_REQUIRED')return {status:'NOT_REQUIRED'};
+      // A missing booking-to-pass link is unresolved, not proof that no deduction applies.
+      if(plan.reason==='PASS_NOT_LINKED')return {status:'NEEDS_REVIEW'};
+      if(plan.status==='NOT_REQUIRED')return {status:'NOT_REQUIRED'};
       if(plan.status==='COMPLETED')return {status:'COMPLETED'};
       if(plan.reason==='PASS_PRIOR_ADJUSTMENT')return {status:'NEEDS_REVIEW'};
       if(plan.status!=='ELIGIBLE')throw Error(plan.reason);

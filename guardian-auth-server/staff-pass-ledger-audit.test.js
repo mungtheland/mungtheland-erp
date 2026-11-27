@@ -90,6 +90,14 @@ test('R - booking deduction flag must match ledger history and S - confirmed che
  f.workbook.history.rows.push(history('H1','2026-11-26T01:00:00.000Z','차감',f.pass[0],f.booking[0],-1,8,7));
  r=run(f);assert.equal(check(r,'R').status,'PASS');assert.equal(check(r,'S').status,'PASS');
 });
+test('R - a completed charge and restore chain matches the restored booking state',()=>{
+ const f=fixture();f.booking[9]='복구';
+ f.workbook.history.rows.push(history('H1','2026-11-26T01:00:00.000Z','차감',f.pass[0],f.booking[0],-1,8,7),
+  history('H2','2026-11-26T01:01:00.000Z','복구',f.pass[0],f.booking[0],1,7,8));
+ const r=run(f);
+ assert.equal(check(r,'M').status,'PASS');assert.equal(check(r,'N').status,'PASS');
+ assert.equal(check(r,'R').status,'PASS');
+});
 test('T - real Firestore comparison is blocked without authorized evidence',()=>{
  const f=fixture();f.workbook.workbookId=INTEGRATION_TEST_WORKBOOK_ID;
  const r=analyzePassLedger({workbook:f.workbook,productCatalog:catalog,source:'integration-test'});

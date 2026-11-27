@@ -111,8 +111,12 @@ function analyzePassLedger({workbook,productCatalog,firestoreEvidence,source='sy
   const pass=passById.get(text(booking[4]));
   if(pass&&productCatalog?.[text(pass[2])]?.kind==='DAY'&&charges.length)dayUse+=charges.length;
   const net=rows.reduce((sum,row)=>sum+(text(row[2])==='차감'?-1:text(row[2])==='복구'?1:0),0);
-  const flag=text(booking[9])||'미차감',expected=net<0?'차감':net>0?'복구':'미차감';
-  if(flag!==expected)flagMismatch++;
+  const ordered=rows.map((row,index)=>({row,index})).sort((a,b)=>
+   String(a.row[1]||'').localeCompare(String(b.row[1]||''))||a.index-b.index);
+  const latest=ordered.at(-1)?.row;
+  const flag=text(booking[9])||'미차감';
+  const expected=!latest?'미차감':text(latest[2])==='차감'?'차감':text(latest[2])==='복구'?'복구':null;
+  if(expected===null||flag!==expected)flagMismatch++;
   const definition=pass&&productCatalog?.[text(pass[2])],kind=definition?.kind;
   if(confirmed&&!definition)unknownDayType++;
   if(confirmed&&kind!=='DAY'&&definition&&(net!==-1||flag!=='차감'))confirmedUnsettled++;
