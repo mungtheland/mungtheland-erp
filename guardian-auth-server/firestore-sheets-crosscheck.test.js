@@ -66,6 +66,32 @@ test('cross-ledger matching is exact and reports NO_MATCH instead of guessing',(
  assert.doesNotMatch(JSON.stringify(result),/DOG-X|Private name|RSV-/);
 });
 
+test('a missing Sheets booking ID cannot be inferred from dog or date fields',()=>{
+ const summary=summarizeAttendance(approved,doc);
+ const result=compareWithSheets({bookingId:approved,attendance:summary,
+  bookingRows:[['','2026-11-26','DOG-X','Private name']],historyRows:[]});
+ assert.equal(result.status,'NO_MATCH');
+ assert.equal(result.matches,0);
+});
+
+test('duplicate exact Sheets booking IDs are rejected as ambiguous',()=>{
+ const summary=summarizeAttendance(approved,doc);
+ const result=compareWithSheets({bookingId:approved,attendance:summary,
+  bookingRows:[[approved],[approved]],historyRows:[]});
+ assert.equal(result.status,'MISMATCH');
+ assert.equal(result.matches,2);
+});
+
+test('booking IDs are not trimmed or case-folded for cross-ledger matching',()=>{
+ const summary=summarizeAttendance(approved,doc);
+ for(const variant of [' '+approved,approved+' ',approved.toLowerCase()]){
+  const result=compareWithSheets({bookingId:approved,attendance:summary,
+   bookingRows:[[variant]],historyRows:[]});
+  assert.equal(result.status,'NO_MATCH');
+  assert.equal(result.matches,0);
+ }
+});
+
 test('missing pass link remains NEEDS_REVIEW and does not become NOT_REQUIRED',()=>{
  const summary=summarizeAttendance(approved,doc);
  const row=[approved,'2026-11-26','dog','private','', '예약',null,null,'하원','미차감',''];
