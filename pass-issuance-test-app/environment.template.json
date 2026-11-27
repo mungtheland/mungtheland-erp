@@ -1,7 +1,12 @@
 {
   "environmentName": "pass-issuance-isolated-test",
+  "projectName": "Mungtheland ERP Pass Issuance Proof - Isolated",
+  "spreadsheetTitle": "Mungtheland ERP Pass Issuance Proof - Synthetic Only",
   "spreadsheetId": "",
   "scriptId": "",
+  "scriptProjectUrl": "",
+  "spreadsheetUrl": "",
+  "ownerAccount": "",
   "ledgerTabName": "_\uC774\uC6A9\uAD8C\uBC1C\uAE09\uC6D0\uC7A5V2",
   "legacyTabName": "_\uC774\uC6A9\uAD8C\uBC1C\uAE09\uC774\uB825",
   "passTabName": "\uC774\uC6A9\uAD8C\uAD00\uB9AC",
@@ -12,6 +17,15 @@
   "testDataIsolationMode": "DEDICATED_WORKBOOK_REQUIRED",
   "recoveryOwner": "",
   "auditPolicyVersion": "DRAFT-1",
+  "approvalReference": "",
+  "approvalReferences": {
+    "A": "",
+    "B": "",
+    "C": "",
+    "D": "",
+    "E": "",
+    "F": ""
+  },
   "permissionScopeProfile": "UNCONFIRMED",
   "evidence": {
     "dedicatedAppsScriptProjectConfirmed": false,
@@ -19,5 +33,25 @@
     "ownershipAndIsolationApproved": false,
     "permissionScopeReviewed": false,
     "evidenceReference": ""
+  },
+  "isolationEvidence": {
+    "reviewStatus": "UNVERIFIED",
+    "dedicatedScript": false,
+    "dedicatedWorkbook": false,
+    "syntheticDataOnly": false,
+    "noSharedSourceData": false,
+    "ownerAccountMatches": false,
+    "evidenceReference": ""
+  },
+  "permissionReview": {
+    "status": "UNREVIEWED",
+    "runtimeIdentity": "",
+    "scriptEditors": [],
+    "workbookEditors": [],
+    "oauthScopes": [],
+    "webAppAccess": "UNKNOWN",
+    "githubDeployment": "UNKNOWN",
+    "tokenStorage": "UNREVIEWED",
+    "reviewReference": ""
   }
 }

@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const { spawnSync } = require('node:child_process');
 const { buildPassIssuanceTestBundle } = require('./build-pass-issuance-test.cjs');
 const { validateSnapshot } = require('./validate-pass-issuance-v2-snapshot.cjs');
+const { mdPassIssuanceValidateRegistration_ } = require('../src/PassIssuanceEnvironment.js');
 
 const root = path.resolve(__dirname, '..');
 const expectedBranch = 'feature/staff-attendance-desktop';
@@ -86,6 +87,10 @@ function evaluateEnvironment(config, evidence = {}) {
   add('manual-deploy-workflow-review', evidence.manualDeployment === false, 'MANUAL_DEPLOY_WORKFLOW_PRESENT', true);
   add('legacy-path-unchanged', evidence.legacyChanged === false, 'LEGACY_READER_CHANGED');
   add('existing-issuance-entry-unchanged', evidence.issuanceEntryChanged === false, 'EXISTING_ISSUANCE_ENTRY_CHANGED');
+  const registration = evidence.registrationResult || { status: 'BLOCKED', cloudOwnershipVerified: false };
+  add('environment-registration', registration.status === 'PASS', 'ENVIRONMENT_REGISTRATION_INVALID', registration.status === 'NEEDS_APPROVAL');
+  add('cloud-ownership-not-claimed', registration.cloudOwnershipVerified === false,
+    'LOCAL_CHECK_CANNOT_VERIFY_CLOUD_OWNERSHIP');
 
   // This tool is intentionally incapable of approving or invoking a deployment.
   const deployment = { name: 'deployment-execution', status: 'BLOCKED', reason: 'DEPLOYMENT_NOT_PERMITTED_IN_STAGE_66' };
@@ -123,10 +128,33 @@ function collectKnownTargets() {
   }
   const guardianWorkbookIds = [];
   const productionWorkbookIds = [];
-  const workbookSource = fs.readFileSync(path.join(root, 'guardian-auth-server', 'staff-pass-ledger-read.js'), 'utf8');
-  const match = workbookSource.match(/INTEGRATION_TEST_WORKBOOK_ID\s*=\s*['"]([^'"]+)['"]/);
-  if (match) guardianWorkbookIds.push(match[1]);
-  return { guardianIds, productionIds, guardianWorkbookIds, productionWorkbookIds };
+  const erpSpreadsheetIds = new Set();
+  const sourceRoots = ['guardian-auth-server', 'src'];
+  const idAssignment = /(?:const|let|var)\s+([A-Z0-9_]*(?:SPREADSHEET|WORKBOOK|SHEET)_ID)\s*=\s*['"]([A-Za-z0-9_-]{20,128})['"]/g;
+  for (const relativeRoot of sourceRoots) {
+    const absoluteRoot = path.join(root, relativeRoot);
+    const pending = [absoluteRoot];
+    while (pending.length) {
+      const current = pending.pop();
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name === '.git') continue;
+        const target = path.join(current, entry.name);
+        if (entry.isDirectory()) pending.push(target);
+        else if (/\.(?:js|cjs|gs)$/i.test(entry.name)) {
+          const source = fs.readFileSync(target, 'utf8');
+          for (const match of source.matchAll(idAssignment)) {
+            erpSpreadsheetIds.add(match[2]);
+            if (/GUARDIAN|INTEGRATION_TEST/i.test(match[1])) guardianWorkbookIds.push(match[2]);
+          }
+        }
+      }
+    }
+  }
+  for (const name of ['.clasp.json', '.clasp.production.json', '.clasp.prod.json']) {
+    const value = readConfiguredTarget(path.join(root, name), 'spreadsheetId');
+    if (value) productionWorkbookIds.push(value);
+  }
+  return { guardianIds, productionIds, guardianWorkbookIds, productionWorkbookIds, erpSpreadsheetIds: [...erpSpreadsheetIds] };
 }
 
 function scanBundle(directory, filenames) {
@@ -182,6 +210,13 @@ function inspect(configPath = path.join(root, 'pass-issuance-test-app', 'environ
       branch: git(['branch', '--show-current']),
       cwdMatches: path.resolve(process.cwd()) === root,
       ...known,
+      registrationResult: mdPassIssuanceValidateRegistration_(config, {
+        guardianScriptIds: known.guardianIds,
+        productionScriptIds: known.productionIds,
+        guardianSpreadsheetIds: known.guardianWorkbookIds,
+        erpSpreadsheetIds: known.erpSpreadsheetIds,
+        productionSpreadsheetIds: known.productionWorkbookIds
+      }),
       schemaResult: validateSnapshot({
         mode: 'SYNTHETIC_FIXTURE_ONLY',
         v2SheetName: config.ledgerTabName,
@@ -217,4 +252,4 @@ if (require.main === module) {
   if (result.status !== 'READY' || result.deployment.status !== 'READY') process.exitCode = 2;
 }
 
-module.exports = { evaluateEnvironment, inspect, expectedFiles };
+module.exports = { evaluateEnvironment, inspect, expectedFiles, collectKnownTargets };

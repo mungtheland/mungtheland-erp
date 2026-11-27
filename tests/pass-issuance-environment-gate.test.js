@@ -26,6 +26,7 @@ function readyEvidence() {
   return {
     branch: 'feature/staff-attendance-desktop', cwdMatches: true,
     schemaResult: { status: 'PASS', v2HeaderCount: 16, legacyHeaderCount: 13 },
+    registrationResult: { status: 'PASS', cloudOwnershipVerified: false },
     syntheticFixtureRequestPrefix: true,
     buildFiles: expectedFiles, manifestValid: true, publicEndpoint: false, outboundEndpoint: false,
     secretMaterial: false, automaticDeployment: false, manualDeployment: false,

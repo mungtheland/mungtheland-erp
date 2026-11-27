@@ -1,5 +1,6 @@
 {
   "mode": "SYNTHETIC_FIXTURE_ONLY",
+  "existingTabTitles": ["Sheet1"],
   "v2SheetName": "_이용권발급원장V2",
   "legacySheetName": "_이용권발급이력",
   "v2Headers": [
