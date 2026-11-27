@@ -13,8 +13,8 @@ The new resources are not created by this procedure or by the local tools. The p
 ## Human provisioning procedure after separate approval A
 
 1. The designated recovery owner records the approval reference and signs in as the approved resource owner.
-2. Create a standalone Apps Script project named `Mungtheland ERP Pass Issuance Proof - Isolated`. Do not copy the Guardian project or use its clasp configuration.
-3. Create a new spreadsheet named `Mungtheland ERP Pass Issuance Proof - Synthetic Only`. Do not copy the existing ERP workbook, its rows, formulas, or tabs.
+2. Create a standalone Apps Script project named `멍더랜드 발급 실증 TEST`. Do not copy the Guardian project or use its clasp configuration.
+3. Create a new spreadsheet named `멍더랜드 발급 실증 전용 TEST`. Do not copy the existing ERP workbook, its rows, formulas, or tabs.
 4. Record the project ID, spreadsheet ID, canonical editor URLs, owner, creation time, and approval reference in the ignored local environment override. Never place tokens or credentials there.
 5. Independently read project and spreadsheet metadata. Confirm exact IDs, names, owner, resource types, and that neither identifier matches a production, Guardian, or existing ERP target. The local deny list is only a cross-check; a human must review the cloud metadata.
 6. Confirm the workbook contains only approved synthetic test structures and no real customer, pet, payment, or legacy issuance records. Keep original ERP and Guardian resources unchanged.

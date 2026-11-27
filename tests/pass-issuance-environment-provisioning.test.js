@@ -11,8 +11,8 @@ function registration(overrides = {}) {
   const owner = 'synthetic-owner@example.invalid';
   return {
     environmentName: 'pass-issuance-isolated-test',
-    projectName: 'Mungtheland ERP Pass Issuance Proof - Isolated',
-    spreadsheetTitle: 'Mungtheland ERP Pass Issuance Proof - Synthetic Only',
+    projectName: '멍더랜드 발급 실증 TEST',
+    spreadsheetTitle: '멍더랜드 발급 실증 전용 TEST',
     scriptId: 'SYNTHETIC_SCRIPT_TARGET_67000001',
     spreadsheetId: 'SYNTHETIC_WORKBOOK_TARGET_67000001',
     scriptProjectUrl: 'https://script.google.com/home/projects/SYNTHETIC_SCRIPT_TARGET_67000001/edit',

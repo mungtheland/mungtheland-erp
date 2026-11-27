@@ -1,7 +1,7 @@
 {
   "environmentName": "pass-issuance-isolated-test",
-  "projectName": "Mungtheland ERP Pass Issuance Proof - Isolated",
-  "spreadsheetTitle": "Mungtheland ERP Pass Issuance Proof - Synthetic Only",
+  "projectName": "멍더랜드 발급 실증 TEST",
+  "spreadsheetTitle": "멍더랜드 발급 실증 전용 TEST",
   "spreadsheetId": "",
   "scriptId": "",
   "scriptProjectUrl": "",

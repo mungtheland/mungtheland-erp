@@ -57,8 +57,8 @@ function mdPassIssuanceValidateRegistration_(config, knownTargets = {}) {
   const spreadsheetId = typeof c.spreadsheetId === 'string' ? c.spreadsheetId.trim() : '';
   const idPattern = /^[A-Za-z0-9_-]{20,128}$/;
   add('environment', c.environmentName === MD_PASS_ISSUANCE_ENVIRONMENT_NAME_, 'ENVIRONMENT_NAME_INVALID');
-  add('project-name', c.projectName === 'Mungtheland ERP Pass Issuance Proof - Isolated', 'PROJECT_NAME_INVALID');
-  add('workbook-title', c.spreadsheetTitle === 'Mungtheland ERP Pass Issuance Proof - Synthetic Only', 'WORKBOOK_TITLE_INVALID');
+  add('project-name', c.projectName === '\uBA4D\uB354\uB79C\uB4DC \uBC1C\uAE09 \uC2E4\uC99D TEST', 'PROJECT_NAME_INVALID');
+  add('workbook-title', c.spreadsheetTitle === '\uBA4D\uB354\uB79C\uB4DC \uBC1C\uAE09 \uC2E4\uC99D \uC804\uC6A9 TEST', 'WORKBOOK_TITLE_INVALID');
   add('script-id-format', idPattern.test(scriptId), 'SCRIPT_ID_INVALID');
   add('spreadsheet-id-format', idPattern.test(spreadsheetId), 'SPREADSHEET_ID_INVALID');
   add('distinct-resource-ids', !!scriptId && !!spreadsheetId && scriptId !== spreadsheetId, 'RESOURCE_ID_TYPE_COLLISION');
