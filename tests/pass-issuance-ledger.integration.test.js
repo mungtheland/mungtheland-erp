@@ -13,9 +13,10 @@ let passed=0;
 function test(name,fn){try{fn();passed++;console.log('PASS '+name);}catch(error){console.error('FAIL '+name);throw error;}}
 
 const makeCommand=(overrides={})=>({validationStatus:'VALIDATED',issuanceRequestId:'REQ-SYNTH-62001',
- idempotencyKey:'PASS-ISSUE:v4:REQ-SYNTH-62001',paymentReference:'PAY-SYNTH-62001',productId:'SYNTH-PASS-8',
+ idempotencyKey:'PASS-ISSUE:v4:REQ-SYNTH-62001',paymentReference:'PAY-SYNTH-62001',productId:'SYNTH-PASS-8',productName:'Synthetic eight uses',
  catalogVersion:4,productType:'PASS',approvalStatus:'APPROVED',active:true,petId:'PET-SYNTH-01',guardianId:'GUARD-SYNTH-01',
- totalUses:8,amount:80000,paymentStatus:'완료',requestedAt:'2026-11-27T01:00:00.000Z',committedAt:'',sourceChannel:'synthetic-test',
+ totalUses:8,amount:80000,saleAmount:80000,discountAmount:0,startDate:'2026-11-27',expiryDate:'2027-11-27',
+ paymentStatus:'완료',requestedAt:'2026-11-27T01:00:00.000Z',committedAt:'',sourceChannel:'synthetic-test',
  auditReference:'AUDIT-SYNTH-62001',...overrides});
 function harness(options={}){
  const ledger=[],passes=[];let writes={ledger:0,pass:0,commit:0},released=0,readCount=0,coverage=options.coverage||'COMPLETE';
@@ -26,7 +27,10 @@ function harness(options={}){
    legacyPaymentReferenceCoverage:coverage,ledger:structuredClone(ledger),passes:structuredClone(passes)};},
   appendLedger(row){writes.ledger++;if(fault==='LEDGER_BEFORE')throw Error('synthetic fault');ledger.push(structuredClone(row));if(fault==='LEDGER_AFTER')throw Error('synthetic lost acknowledgement');return ledger.length+1;},
   appendPass(row){writes.pass++;if(fault==='PASS_BEFORE')throw Error('synthetic fault');passes.push(structuredClone(row));if(fault==='PASS_AFTER')throw Error('synthetic lost acknowledgement');},
-  updateLedger(rowNumber,changes){writes.commit++;if(fault==='COMMIT_BEFORE')throw Error('synthetic fault');Object.assign(ledger[rowNumber-2],structuredClone(changes));if(fault==='COMMIT_AFTER')throw Error('synthetic lost acknowledgement');}};
+  updateLedger(rowNumber,changes){writes.commit++;if(fault==='COMMIT_BEFORE')throw Error('synthetic fault');
+   const row=ledger[rowNumber-2];if(row.issuanceRequestId!==changes.issuanceRequestId||row.issuanceStatus!==changes.expectedStatus)return false;
+   const {issuanceRequestId,expectedStatus,...updates}=structuredClone(changes);Object.assign(row,updates);
+   if(fault==='COMMIT_AFTER')throw Error('synthetic lost acknowledgement');return true;}};
  return {ledger,passes,writes,released,lock,ports,getReleased:()=>released,getReads:()=>readCount,setCoverage:value=>{coverage=value;},issue:(cmd=makeCommand())=>mdPassIssuanceRunWithPorts_(cmd,ports)};
 }
 
@@ -38,6 +42,8 @@ test('command requires approved catalog, recurring pass, payment and stable idem
  assert.equal(mdPassIssuanceValidateCommand_(makeCommand()).ok,true);
  for(const patch of [{approvalStatus:'DRAFT'},{productType:'TEST_ONLY'},{active:false},{paymentStatus:'미결제'},
   {idempotencyKey:'wrong'},{totalUses:7},{amount:-1},{issuanceRequestId:' REQ-SYNTH-62001'}])
+  assert.equal(mdPassIssuanceValidateCommand_(makeCommand(patch)).ok,false);
+ for(const patch of [{startDate:'2026-02-30'},{expiryDate:'2026-01-01'},{amount:70000},{saleAmount:70000,discountAmount:80000}])
   assert.equal(mdPassIssuanceValidateCommand_(makeCommand(patch)).ok,false);
 });
 test('reconciliation reports NO_MATCH, MATCH, PARTIAL and MISMATCH without normalization',()=>{
@@ -61,7 +67,7 @@ test('spreadsheet adapter maps only the declared tabs and writes only against mo
  const ledgerHeaders=['발급요청 ID','멱등성 키','결제 참조','상품 ID','카탈로그 버전','반려견 ID','보호자 ID','이용권 ID',
   '총 횟수','발급 상태','요청시각','확정시각','처리 횟수','마지막 오류 코드','신청 채널','감사 참조'];
  const passHeaders=['이용권 ID','반려견 ID','상품 ID','상품명','구매일','총 횟수','사용 횟수','잔여 횟수','시작일','만료일','판매금액','할인금액','결제금액','결제상태','이용권상태'];
- const makeSheet=headers=>({headers,grid:[headers],getLastRow(){return this.grid.length;},
+ const makeSheet=headers=>({headers,grid:[headers],getLastRow(){return this.grid.length;},getLastColumn(){return this.headers.length;},
   getRange(r,c,nRows,nCols){const sheet=this;return {getDisplayValues(){return Array.from({length:nRows},(_,i)=>Array.from({length:nCols},(_,j)=>String(sheet.grid[r-1+i]?.[c-1+j]??'')));},
    getValues(){return Array.from({length:nRows},(_,i)=>Array.from({length:nCols},(_,j)=>sheet.grid[r-1+i]?.[c-1+j]??''));},
    setValues(values){values.forEach((row,i)=>{sheet.grid[r-1+i]=[...(sheet.grid[r-1+i]||[])];row.forEach((v,j)=>sheet.grid[r-1+i][c-1+j]=v);});}};},
@@ -76,10 +82,12 @@ test('spreadsheet adapter maps only the declared tabs and writes only against mo
   productId:'SYNTH-PASS-8',catalogVersion:4,petId:'PET-SYNTH-01',guardianId:'GUARD-SYNTH-01',passId:'PASS-SYNTH-62003',
   totalUses:8,issuanceStatus:'PENDING',requestedAt:'2026-11-27T00:00:00.000Z',committedAt:'',attemptCount:1,lastErrorCode:'',
   sourceChannel:'synthetic-test',auditReference:'AUDIT-SYNTH-62003'});
- assert.equal(row,2);ports.appendPass({passId:'PASS-SYNTH-62003',petId:'PET-SYNTH-01',productId:'SYNTH-PASS-8',totalUses:8,amount:80000});
- ports.updateLedger(2,{issuanceStatus:'NEEDS_REVIEW',lastErrorCode:'SYNTHETIC_REVIEW'});
+ assert.equal(row,2);ports.appendPass({passId:'PASS-SYNTH-62003',petId:'PET-SYNTH-01',productId:'SYNTH-PASS-8',productName:'Synthetic pass',
+  totalUses:8,amount:80000,saleAmount:80000,discountAmount:0,startDate:'2026-11-27',expiryDate:'2027-11-27'});
+ assert.equal(ports.updateLedger(2,{issuanceRequestId:'REQ-SYNTH-62003',expectedStatus:'PENDING',issuanceStatus:'NEEDS_REVIEW',lastErrorCode:'SYNTHETIC_REVIEW'}),true);
  assert.equal(ledger.grid[1][0],'REQ-SYNTH-62003');assert.equal(ledger.grid[1][9],'NEEDS_REVIEW');
- assert.equal(passes.grid[1][0],'PASS-SYNTH-62003');assert.equal(passes.grid[1][7],8);assert.equal(flush.count,3);
+ assert.equal(passes.grid[1][0],'PASS-SYNTH-62003');assert.equal(passes.grid[1][3],'Synthetic pass');assert.equal(passes.grid[1][7],8);
+ assert.equal(passes.grid[1][12],80000);assert.equal(flush.count,3);
 });
 test('normal issuance records pending, pass, then committed and verifies final pair',()=>{
  const h=harness();const result=h.issue();assert.equal(result.status,'COMMITTED');assert.equal(result.alreadyCommitted,false);

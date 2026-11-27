@@ -44,15 +44,24 @@ function mdPassIssuanceReconcile_(ledgerRows,passRows){
 
 function mdPassIssuanceValidateCommand_(command){
  const c=command||{};
- const fields=['issuanceRequestId','idempotencyKey','paymentReference','productId','petId','guardianId','sourceChannel','auditReference'];
+ const fields=['issuanceRequestId','idempotencyKey','paymentReference','productId','productName','petId','guardianId','sourceChannel','auditReference'];
+ const safeText=value=>typeof value==='string'&&value===value.trim()&&!/^=/.test(value)&&!/[\r\n\0]/.test(value);
+ const validDate=value=>value===''||(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&
+  Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value);
+ const validTimestamp=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&
+  Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
  if(fields.some(key=>typeof c[key]!=='string'||!c[key]||c[key]!==c[key].trim()))return {ok:false,reason:'COMMAND_FIELD_INVALID'};
  if(c.validationStatus!=='VALIDATED'||!Number.isSafeInteger(c.catalogVersion)||c.catalogVersion<1||
    ![8,12,16,20].includes(c.totalUses)||c.idempotencyKey!=='PASS-ISSUE:v'+c.catalogVersion+':'+c.issuanceRequestId||
-   !Number.isFinite(Date.parse(c.requestedAt))||!Number.isFinite(Date.parse(c.committedAt||c.requestedAt))||
+   !validTimestamp(c.requestedAt)||!(c.committedAt===''||validTimestamp(c.committedAt))||
+   !validDate(c.startDate)||!validDate(c.expiryDate)||(c.startDate&&c.expiryDate&&c.startDate>c.expiryDate)||
    c.approvalStatus!=='APPROVED'||c.productType!=='PASS'||c.active!==true||c.paymentStatus!=='완료'||
-   !Number.isSafeInteger(c.amount)||c.amount<0||c.sourceChannel.length>40||c.auditReference.length>160||
-   c.paymentReference.length>160||c.issuanceRequestId.length>120||c.productId.length>80||c.petId.length>120||c.guardianId.length>120)
+   !Number.isSafeInteger(c.amount)||c.amount<0||!Number.isSafeInteger(c.saleAmount)||c.saleAmount<0||
+   !Number.isSafeInteger(c.discountAmount)||c.discountAmount<0||c.discountAmount>c.saleAmount||c.amount!==c.saleAmount-c.discountAmount||
+   c.sourceChannel.length>40||c.auditReference.length>160||c.productName.length>120||c.paymentReference.length>160||
+   c.issuanceRequestId.length>120||c.productId.length>80||c.petId.length>120||c.guardianId.length>120)
   return {ok:false,reason:'COMMAND_NOT_APPROVED'};
+ if(fields.some(key=>!safeText(c[key])))return {ok:false,reason:'COMMAND_TEXT_INVALID'};
  return {ok:true};
 }
 
@@ -116,8 +125,11 @@ function mdPassIssuanceRunWithPorts_(command,ports){
    return {status:'NEEDS_REVIEW',reason:'PASS_READBACK_MISMATCH',passId};
   const committedAt=typeof ports.now==='function'?ports.now():new Date().toISOString();
   if(!Number.isFinite(Date.parse(committedAt)))return {status:'NEEDS_REVIEW',reason:'COMMIT_TIME_INVALID',passId};
-  try{ports.updateLedger(ledgerRow,{passId,issuanceStatus:'COMMITTED',committedAt,attemptCount:1,lastErrorCode:''});}
+  let updated;
+  try{updated=ports.updateLedger(ledgerRow,{issuanceRequestId:command.issuanceRequestId,expectedStatus:'PENDING',passId,
+   issuanceStatus:'COMMITTED',committedAt,attemptCount:1,lastErrorCode:''});}
   catch(_){return {status:'NEEDS_REVIEW',reason:'COMMIT_MARKER_UNKNOWN',passId};}
+  if(updated!==true)return {status:'NEEDS_REVIEW',reason:'COMMIT_MARKER_CONFLICT',passId};
   let finalSnapshot;
   try{finalSnapshot=ports.readSnapshot();}
   catch(_){return {status:'NEEDS_REVIEW',reason:'COMMIT_READBACK_UNKNOWN',passId};}
@@ -137,6 +149,7 @@ function mdPassIssuanceSpreadsheetPorts_(){
  const ledgerHeaders=ledgerSheet.getRange(1,1,1,MD_PASS_ISSUANCE_HEADERS_.length).getDisplayValues()[0];
  const passHeaders=mdHeaders_(passSheet),expectedPassHeaders=MD_SCHEMAS['이용권관리'];
  if(MD_PASS_ISSUANCE_HEADERS_.some((header,i)=>ledgerHeaders[i]!==header)||
+   ledgerSheet.getLastColumn()!==MD_PASS_ISSUANCE_HEADERS_.length||passHeaders.length!==expectedPassHeaders.length||
    expectedPassHeaders.some((header,i)=>passHeaders[i]!==header))throw Error('ISSUANCE_LEDGER_SCHEMA_MISMATCH');
  const rows=(sheet,count)=>sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,count).getValues():[];
  const ledgerFields=['issuanceRequestId','idempotencyKey','paymentReference','productId','catalogVersion','petId','guardianId','passId',
@@ -145,6 +158,7 @@ function mdPassIssuanceSpreadsheetPorts_(){
  const ledgerToRow=record=>ledgerFields.map(key=>record[key]===undefined?'':record[key]);
  return {
   getLock:()=>LockService.getScriptLock(),
+  createPassId:()=>mdId_('PASS'),
   readSnapshot(){
    const ledger=rows(ledgerSheet,MD_PASS_ISSUANCE_HEADERS_.length).map(row=>{
     const raw=ledgerFromRow(row);raw.catalogVersion=Number(raw.catalogVersion);raw.totalUses=Number(raw.totalUses);
@@ -159,18 +173,20 @@ function mdPassIssuanceSpreadsheetPorts_(){
   appendLedger(record){ledgerSheet.appendRow(ledgerToRow(record));SpreadsheetApp.flush();return ledgerSheet.getLastRow();},
   appendPass(record){
    const row=Array(expectedPassHeaders.length).fill('');
-   Object.assign(row,{0:record.passId,1:record.petId,2:record.productId,3:'',4:new Date(),5:record.totalUses,6:0,7:record.totalUses,
-    8:'',9:'',10:record.amount,11:0,12:record.amount,13:'완료',14:'사용 가능'});
+   Object.assign(row,{0:record.passId,1:record.petId,2:record.productId,3:record.productName,4:new Date(),5:record.totalUses,6:0,7:record.totalUses,
+    8:record.startDate,9:record.expiryDate,10:record.saleAmount,11:record.discountAmount,12:record.amount,13:'완료',14:'사용 가능'});
    passSheet.appendRow(row);
    SpreadsheetApp.flush();
   },
   updateLedger(rowNumber,changes){
    const current=ledgerSheet.getRange(rowNumber,1,1,MD_PASS_ISSUANCE_HEADERS_.length).getValues()[0];
    const row=ledgerFromRow(current);
+   if(row.issuanceRequestId!==changes.issuanceRequestId||row.issuanceStatus!==changes.expectedStatus)return false;
    const allowed=new Set(['passId','issuanceStatus','committedAt','attemptCount','lastErrorCode']);
    Object.keys(changes).forEach(key=>{if(allowed.has(key))row[key]=changes[key];});
    ledgerSheet.getRange(rowNumber,1,1,MD_PASS_ISSUANCE_HEADERS_.length).setValues([ledgerToRow(row)]);
    SpreadsheetApp.flush();
+   return true;
   }
  };
 }
