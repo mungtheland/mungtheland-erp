@@ -25,7 +25,7 @@ function baseConfig() {
 
 function readyEvidence() {
   return {
-    branch: 'feature/staff-attendance-desktop', cwdMatches: true,
+    branch: 'feature/staff-attendance-desktop', cwdMatches: true, dedicatedTargetsMatch: true,
     schemaResult: { status: 'PASS', v2HeaderCount: 16, legacyHeaderCount: 13 },
     registrationResult: { status: 'PASS', cloudOwnershipVerified: false },
     syntheticFixtureRequestPrefix: true,
@@ -88,6 +88,8 @@ assert.equal(ready.status, 'READY');
 assert.equal(ready.deployment.status, 'BLOCKED');
 assert.equal(ready.remoteCalls, 0);
 assert.equal(ready.writesPerformed, 0);
+assert.equal(evaluateEnvironment(baseConfig(), { ...readyEvidence(), dedicatedTargetsMatch: false })
+  .checks.find(item => item.name === 'application-target-allowlist').status, 'BLOCKED');
 assert.equal(evaluateEnvironment({}, readyEvidence()).status, 'BLOCKED');
 assert.equal(evaluateEnvironment(baseConfig(), { ...readyEvidence(), branch: 'main' }).checks.find(x => x.name === 'branch').status, 'BLOCKED');
 assert.equal(evaluateEnvironment(baseConfig(), { ...readyEvidence(), cwdMatches: false }).checks.find(x => x.name === 'working-directory').status, 'BLOCKED');

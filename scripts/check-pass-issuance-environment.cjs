@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { spawnSync } = require('node:child_process');
-const { buildPassIssuanceTestBundle } = require('./build-pass-issuance-test.cjs');
+const { buildPassIssuanceTestBundle, matchesDedicatedTargets } = require('./build-pass-issuance-test.cjs');
 const { validateSnapshot } = require('./validate-pass-issuance-v2-snapshot.cjs');
 const { mdPassIssuanceValidateRegistration_ } = require('../src/PassIssuanceEnvironment.js');
 
@@ -16,7 +16,7 @@ const expectedBranch = 'feature/staff-attendance-desktop';
 const expectedEnvironment = 'pass-issuance-isolated-test';
 const expectedFiles = [
   'PassCatalog.gs','PassIssuancePlan.gs','PassIssuanceLegacyReader.gs',
-  'PassIssuanceLedger.gs','PassIssuancePreflight.gs','appsscript.json'
+  'PassIssuanceLedger.gs','PassIssuancePreflight.gs','WorkbookAccess.gs','appsscript.json'
 ];
 const PRIVATE_PATTERNS = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/i,
@@ -46,6 +46,7 @@ function evaluateEnvironment(config, evidence = {}) {
   const blockedIds = new Set([...(evidence.guardianIds || []), ...(evidence.productionIds || [])].filter(Boolean));
   const blockedWorkbooks = new Set([...(evidence.guardianWorkbookIds || []), ...(evidence.productionWorkbookIds || [])].filter(Boolean));
   add('target-ids-configured', validId(scriptId) && validId(workbookId), 'TARGET_IDS_UNCONFIGURED');
+  add('application-target-allowlist', evidence.dedicatedTargetsMatch === true, 'DEDICATED_TARGET_ALLOWLIST_MISMATCH');
   const idsPresent = !!scriptId && !!workbookId;
   add('guardian-target-separation', idsPresent && !blockedIds.has(scriptId) && !blockedWorkbooks.has(workbookId),
     idsPresent ? 'GUARDIAN_TEST_TARGET_BLOCKED' : 'TARGET_ISOLATION_UNVERIFIED', !idsPresent);
@@ -213,6 +214,7 @@ function inspect(configPath = path.join(root, 'pass-issuance-test-app', 'environ
     const evidence = {
       branch: git(['branch', '--show-current']),
       cwdMatches: path.resolve(process.cwd()) === root,
+      dedicatedTargetsMatch: matchesDedicatedTargets(config),
       ...known,
       registrationResult: mdPassIssuanceValidateRegistration_(config, {
         guardianScriptIds: known.guardianIds,
@@ -244,6 +246,12 @@ function inspect(configPath = path.join(root, 'pass-issuance-test-app', 'environ
     };
     return {
       ...evaluateEnvironment(config, evidence),
+      isolationBoundary: {
+        applicationTargetRestriction: 'PINNED_TEST_SCRIPT_AND_WORKBOOK',
+        accountIsolation: config?.observedIsolationEvidence?.accountLevelErpAccessBlocked === false
+          ? 'NOT_ISOLATED' : 'UNVERIFIED',
+        effectiveOAuth: 'UNVERIFIED'
+      },
       registrationBlockers: evidence.registrationResult.checks.filter(item => item.status !== 'PASS')
     };
   } finally {
