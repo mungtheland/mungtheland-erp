@@ -89,6 +89,17 @@ test('spreadsheet adapter maps only the declared tabs and writes only against mo
  assert.equal(passes.grid[1][0],'PASS-SYNTH-62003');assert.equal(passes.grid[1][3],'Synthetic pass');assert.equal(passes.grid[1][7],8);
  assert.equal(passes.grid[1][12],80000);assert.equal(flush.count,3);
 });
+test('legacy 13-column issuance tab is rejected without creating or changing sheets',()=>{
+ const legacyHeaders=['Issuance request ID','Pass ID','Pet ID','Uses','Start date','Expiry date','Sale amount',
+  'Discount amount','Payment amount','Payment method','Approver','Approved at','Status'];
+ let writes=0;
+ const legacySheet={getRange(){return {getDisplayValues:()=>[legacyHeaders]};},getLastColumn:()=>legacyHeaders.length,
+  getLastRow:()=>1,appendRow(){writes++;},insertColumnAfter(){writes++;}};
+ context.MD_SCHEMAS={'이용권관리':[]};context.mdHeaders_=()=>[];
+ context.mdBook_=()=>({getSheetByName:()=>legacySheet,insertSheet(){writes++;throw Error('unexpected sheet creation');}});
+ assert.throws(()=>context.mdPassIssuanceSpreadsheetPorts_(),/ISSUANCE_LEDGER_SCHEMA_MISMATCH/);
+ assert.equal(writes,0);
+});
 test('normal issuance records pending, pass, then committed and verifies final pair',()=>{
  const h=harness();const result=h.issue();assert.equal(result.status,'COMMITTED');assert.equal(result.alreadyCommitted,false);
  assert.equal(h.ledger[0].issuanceStatus,'COMMITTED');assert.equal(h.ledger[0].passId,'SYNTH-PASS-62001');
