@@ -124,6 +124,14 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 - 최종 회귀: 입소 workflow+CSV 합성 테스트 31 PASS, `npm.cmd run check` 통과, `npm.cmd run test:ci` 통합 PASS 표식 83개 및 TAP 200개, 실패 0개. 실 Tally 및 외부 데이터 접근/변경은 0건.
 - 다음 게이트: 양식 관리자가 비식별 질문 ID/설정 export와 webhook 인증·재시도 계약을 제공하고 실제 계약/개인정보 문서 게시본을 대조해야 한다. 운영 연동 및 69단계 승인 B/C는 별도 승인 전까지 수행하지 않는다.
 
+## MVP 3단계 보완 — 공식 webhook 계약 검토
+
+- 작업 폴더에는 편집기 캡처 10장과 CSV 원본이 없었고 공개 form URL은 열람 도구에서 열리지 않았다. 종전 사용자 제공 CSV 구조 요약과 synthetic fixture는 확인했다.
+- Tally 공식 문서에서 submission ID 의미, webhook JSON envelope와 `fields[].key/label/type/value`, signing-secret의 `Tally-Signature` HMAC-SHA256/Base64 방식, 10초 내 2XX 요구 및 5분/30분/1시간/6시간/1일 retry 일정을 확인했다. 이는 provider documentation이지 PRzER1의 실제 설정 검증이 아니다.
+- `guardian-auth-server/tally-webhook-contract.js`는 합성 request만으로 문서화된 signature/envelope 검증을 하고, form ID 미설정·불일치나 signature 오류 시 차단한다. 실제 secret 및 allowlisted form ID, 질문 ID는 없으므로 adapter/route는 계속 비활성이다.
+- 통합 회귀 결과: 입소/CVS/webhook 합성 테스트 36 PASS, 0 FAIL; 전체 CI에서 기존 integration PASS 표식 83개 및 TAP 205개, 0 FAIL. 실 양식/form settings/webhook/API 호출은 0회.
+- 다음 증거: 편집 화면의 질문/logic 설정 캡처와 Tally 설정에서 확인한 form ID 및 signing-secret enabled 상태(비밀값 제외), 그리고 개인정보/응답값을 제거한 실제 field key/label/type 구조. 69단계 B/C 승인에는 영향 없다.
+
 ## 제외 및 보류 항목
 
 - 69단계 전용 TEST 환경 원장 초기화(B)와 Apps Script 배포(C)는 미승인 상태로 둔다.

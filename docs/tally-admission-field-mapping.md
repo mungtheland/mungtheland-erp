@@ -2,12 +2,14 @@
 
 ## 증거 상태
 
-사용자가 제공한 55열 CSV 구조 관찰을 `VERIFIED_FROM_CSV` 근거로 기록한다. 실제 CSV 파일과 1개 테스트 응답의 원본 값은 저장소에 넣지 않았다. Tally 편집 화면의 캡처나 내부 질문 ID export는 이번 작업 입력에 포함되지 않았으므로 편집기 설정 증거로 표시하지 않는다.
+작업 폴더에는 요청된 편집 화면 캡처 10장이나 원본 CSV 파일이 없다. 이전 단계에 사용자가 전달한 55열 CSV 구조 요약만 `VERIFIED_FROM_CSV`로 유지하며, 실제 CSV 파일/테스트 응답 값은 저장소에 추가하지 않았다. 공개 양식 URL은 이번 열람 도구에서 열리지 않았다. Tally 편집 화면 캡처나 실제 설정 export가 없으므로 form-specific 편집기 증거는 표시하지 않는다.
 
 - CSV에서 확인된 열 번호·헤더·그룹: `VERIFIED_FROM_CSV`
 - CSV 열이 실제 응답을 표현하는 형식인지에 관한 테스트: 합성 데이터만 `SYNTHETIC_TEST_ONLY`
 - Tally 내부 질문 ID, 현재 운영 질문 여부, 조건부 표시/필수 규칙, webhook 형식과 인증: `PENDING_VERIFICATION`
 - 편집 화면에서 직접 대조한 사항: 없음
+
+Tally 공식 문서는 webhook의 일반 payload/signature/retry 제품 계약 근거로 별도 검토했다. 이 문서는 해당 양식의 실제 webhook 활성화, 실제 form ID 또는 actual signing-secret 설정을 증명하지 않으므로 이 항목들의 설정 상태는 `PENDING_VERIFICATION`이다.
 
 CSV 열 순서는 1부터 센 원본 순번이다. 열 번호는 Tally 질문 ID가 아니다. CSV export 형식이 webhook payload 형식과 같다고 간주하지 않는다.
 
@@ -29,6 +31,34 @@ CSV 열 순서는 1부터 센 원본 순번이다. 열 번호는 Tally 질문 ID
 | 54 | `보호자 휴대전화 번호를 입력해 주세요. (2)` | 테스트 응답 값 있음 | `phone` 후보 중복 열 | 헤더/위치 및 값 존재 여부 `VERIFIED_FROM_CSV`; 실제 값은 기록하지 않음 |
 | 55 | `비상연락처를 입력해 주세요.` | 테스트 응답 값 있음 | `emergencyPhone` 후보 중복 열 | 헤더/위치 및 값 존재 여부 `VERIFIED_FROM_CSV`; 실제 값은 기록하지 않음 |
 | 별도 확인 없음 | 마케팅 수신 선택 동의 | 확인된 별도 열 없음 | `marketingMessages`, 기본 false | 존재를 가정하지 않음; `PENDING_VERIFICATION` |
+
+## 요청 항목별 질문 대조표
+
+아래 범위 표시는 사용자 제공 CSV 구조 요약에서 확인된 수준이다. 개별 column index와 정확한 질문 문구가 제공되지 않은 항목에는 열 번호를 임의 배정하지 않았다.
+
+| 논리 항목 | 실제 Tally 질문 문구 | CSV 열 | ERP 후보 | 증거 출처 | 매핑 상태 |
+|---|---|---:|---|---|---|
+| 보호자 이름 | 원본 미확인 | 4–40 범위 내로만 확인 | `guardianName` 후보 | CSV 구조 요약, 기존 ERP schema | `PENDING_VERIFICATION` |
+| 보호자 휴대전화 | `보호자 휴대전화 번호를 입력해 주세요.` 및 `(2)` 표기 열 | 5, 54 | `phone` 후보 | CSV 헤더/열 위치 요약 | `PENDING_VERIFICATION` |
+| 비상연락처 | `비상연락처를 입력해 주세요` 및 마침표 표기 열 | 6, 55 | `emergencyPhone` 후보 | CSV 헤더/열 위치 요약 | `PENDING_VERIFICATION` |
+| 반려견 이름·품종·생년월일·성별·중성화·체중 | 개별 문구 미확인 | 4–40 범위 내 개별 열 미확인 | 기존 `dogName`, `breed`, `birthDate`, `sex`, `neutered`, `weight` 후보 | CSV 범주 요약, 기존 ERP schema | `PENDING_VERIFICATION` |
+| 물림 이력 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | 확정 ERP field 없음 | CSV 범주 요약만 | `PENDING_VERIFICATION` |
+| 공격 시도/공격적으로 달려듦 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `notes` 후보이나 의미 미확정 | CSV 범주 요약만 | `PENDING_VERIFICATION` |
+| 다른 개 접근 시 경계 행동 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `notes` 후보이나 의미 미확정 | CSV 범주 요약만 | `PENDING_VERIFICATION` |
+| 자원 방어 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `notes` 후보이나 의미 미확정 | CSV 범주 요약만 | `PENDING_VERIFICATION` |
+| 사람 접촉 거부·분리불안 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `notes` 후보이나 의미 미확정 | CSV 범주 요약만 | `PENDING_VERIFICATION` |
+| 질병·복용약·알레르기·최근 증상 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `health` 후보, 세부 schema 매핑 미확정 | CSV 범주 요약, 기존 ERP schema | `PENDING_VERIFICATION` |
+| 최근 7일 내 이상 증상 | 원본 문구/기간 설정 미확인 | 4–40 범위 내 개별 열 미확인 | `health` 후보, 조건부 기간 의미 미확정 | 안전 항목 요약만 | `PENDING_VERIFICATION` |
+| 예방접종 | 원본 미확인 | 4–40 범위 내 개별 열 미확인 | `vaccines` 후보 | CSV 범주 요약, 기존 ERP schema | `PENDING_VERIFICATION` |
+| 내·외부 기생충 예방 | 원본 미확인 | 37–38 | 확인된 ERP 대응 field 없음 | CSV 열 범주/공란 요약 | `PENDING_VERIFICATION` |
+| 계약 필수 확인·동의 | 각 질문의 정확한 문구 미확인 | 41–50의 2열 출력 다섯 쌍 | 항목별 별도 계약 evidence | CSV 구조 요약 | `PENDING_VERIFICATION` |
+| 개인정보 처리 고지 | 원본 미확인 | 41–50 내 포함 여부 미확인 | 계약 동의와 분리된 notice evidence | CSV 구조 요약만으로 항목 특정 불가 | `PENDING_VERIFICATION` |
+| 사진·영상 홍보 선택 동의 | 원본 질문 문구 미확인 | 51 | `photoMarketing`, 기본 false | CSV 구조 요약 | `PENDING_VERIFICATION` |
+| 마케팅 수신 선택 동의 | 원본 질문 없음/미확인 | 별도 열 확인 안 됨 | `marketingMessages`, 기본 false | CSV 구조 요약 | `PENDING_VERIFICATION` |
+| 전자서명 | 원본 질문 문구 미확인 | 52 | 별도 signature reference | CSV 구조 요약, Tally signature product docs | `PENDING_VERIFICATION` |
+| 서명자 성명 | 원본 질문 문구 미확인 | 53 | 별도 signer metadata | CSV 구조 요약 | `PENDING_VERIFICATION` |
+
+CSV에 응답이 공란인 37–38열은 실제 화면의 조건식이나 해당 질문의 필수 설정이 확인되지 않아 `PENDING_VERIFICATION`이다. 정상적인 조건부 미노출/미응답으로 분류하지 않는다.
 
 ### 중복 연락처 처리 규칙
 
@@ -55,7 +85,17 @@ CSV 열 순서는 1부터 센 원본 순번이다. 열 번호는 Tally 질문 ID
 
 ## 제출 식별자와 자동 연결 방지
 
-CSV 1열의 `Submission ID`는 후보 source ID일 뿐이다. webhook의 서명 검증, 전달된 ID의 변조 방지, 재시도 시 안정성 및 중복 범위는 CSV만으로 증명되지 않는다. 실제 연동에서는 검증된 서버 수신 adapter가 source submission ID를 인증한 뒤 서버가 발급하는 `applicationId`와 별도로 보관해야 한다. 동일 source ID와 동일 canonical payload는 기존 신청을 반환하고, 내용이 바뀌면 충돌로 차단한다. 실제 보장 여부는 webhook 검증 전까지 `PENDING_VERIFICATION`이다.
+CSV 1열의 `Submission ID`는 candidate source ID다. Tally 공식 FAQ는 제출 ID를 현재 form submission의 고유 ID이며 각 제출마다 다르다고 설명하고, webhook example은 `data.submissionId`와 `data.responseId`를 포함한다. 이로써 일반적인 식별자 계약을 확인했지만, 해당 양식의 CSV/webhook 값 대조나 실제 form ID는 확인하지 않았다. [Tally FAQ](https://tally.so/help/faq), [Tally webhook payload example](https://tally.so/help/webhooks)
+
+공식 webhook example에는 `eventId`, `eventType`, `data.formId`, `data.fields[]`의 `key`, `label`, `type`, `value`가 포함된다. `fields[].key`는 질문 식별자 후보 형태지만 실제 PRzER1의 key/label/type 및 조건부 설정은 여전히 `PENDING_VERIFICATION`이다. CSV 열 제목만으로 내부 key를 채우지 않는다.
+
+공식 문서는 webhook signing secret을 켜면 `Tally-Signature` 헤더에 SHA-256 서명이 오며, 예제는 HMAC-SHA256 결과를 Base64로 비교한다. 예제는 parsed request body의 `JSON.stringify`를 서명 입력으로 사용한다. 동일 문서는 endpoint가 10초 내 2XX를 반환해야 한다고 하고, 미성공 응답 시 5분, 30분, 1시간, 6시간, 1일 후 재시도를 설명한다. 이 내용은 [Tally webhook 공식 문서](https://tally.so/help/webhooks)의 일반 동작이다. 현재 양식의 signing secret 활성화 여부, 실제 비밀 설정, webhook delivery/retry 상태는 읽지 않았고 변경하지 않았다.
+
+Tally 공식 API 안내는 API 요청 인증으로 Bearer token을 요구한다고 설명한다. 이 자격증명은 요청하지 않았고 API 호출도 하지 않았다. 이 공개 문서는 API token authentication과 webhook signature를 별도 방식으로 설명한다. [Tally API overview](https://tally.so/help/api)
+
+로컬 `guardian-auth-server/tally-webhook-contract.js`는 위 문서 계약을 합성 payload로만 검사한다. signing secret은 함수 호출 시 전달해야 하며 저장소/환경설정에 넣지 않는다. 검증기에는 form-specific expectedFormId가 필수라 실제 formId가 확인되지 않으면 `TALLY_FORM_ID_PENDING`으로 차단한다. 이는 실제 webhook adapter, 실제 양식 인증 설정 또는 운영 준비를 의미하지 않는다.
+
+서버 발급 `applicationId`는 source submission ID와 별도다. 실제 adapter는 서명 검증 및 allowlisted form ID 일치 후 source ID를 workflow에 전달해야 한다. 동일 source ID와 동일 canonical payload는 기존 신청을 반환하고, 내용이 바뀌면 충돌로 차단한다. 공식 재시도 시간표는 문서화됐지만 해당 form의 delivery 설정/실제 동일 payload 재전송은 확인하지 않았다.
 
 보호자 이름·전화번호나 Respondent ID만으로 기존 ERP 고객을 자동 연결하지 않는다. 최초 방문 때 인증된 직원이 신원을 확인하는 기존 분리 workflow를 유지한다.
 

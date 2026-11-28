@@ -78,3 +78,9 @@
 CSV 질문 제목이나 응답값만으로 현재 Tally 질문 ID, webhook 제출 식별자 안정성, 필수성 또는 조건부 로직을 확정하지 않는다. 연락처 중복 열은 동일값/상충/양쪽 공란/한쪽 값 상태를 구분하고, 한쪽 값은 해당 출처가 검증되지 않으면 선택하지 않는다. 전화번호는 문자열로 보존한다. 계약·개인정보·선택 동의 및 서명 증거는 서로 분리하고, 확인되지 않은 마케팅 수신 열을 가정하지 않는다.
 
 `guardian-auth-server/tally-admission-csv.js`는 합성 CSV 진단기로서 원본 개인정보를 반환하지 않는다. CSV 내보내기 형식과 webhook JSON 계약은 별개이며 실제 adapter/webhook 연동은 여전히 없다. 실제 Tally 질문 ID·조건부/필수 설정, 제출 서명 검증 및 실제 계약/개인정보 게시 버전 확인 전 운영 접수는 BLOCKED다.
+
+### 공식 Tally webhook 문서 대조
+
+Tally 공개 공식 문서는 제출마다 고유한 Submission ID 설명, webhook JSON의 `data.submissionId` 및 `data.fields[].key/label/type/value`, signing secret 사용 시 `Tally-Signature` 헤더와 HMAC-SHA256/Base64 예제를 제공한다. endpoint는 10초 안에 2XX 응답을 해야 하며 실패 재시도 일정도 문서화돼 있다. 이는 제품 공통 기능 문서로 확인한 것이며, 해당 form의 내부 question key, 실제 form ID, signing secret 활성화 여부, webhook retry log/config를 확인한 것은 아니다.
+
+합성 전용 `guardian-auth-server/tally-webhook-contract.js`는 문서의 parsed JSON signing example 및 envelope 형태를 검증한다. 실제 signing secret/allowlisted form ID가 없으면 fail-closed이며, request route나 Tally API 호출·운영 연결은 없다. 실제 설정 확인 전 Tally 제출은 여전히 BLOCKED다.
