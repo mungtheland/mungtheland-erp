@@ -15,6 +15,8 @@ CSV 열 순서는 1부터 센 원본 순번이다. 열 번호는 Tally 질문 ID
 
 ## 열 구조와 ERP 매핑 상태
 
+**형식 범위 주의:** 이 절의 37–38열 언급은 55열 CSV parser의 기존 별도 계약이다. MVP 4의 실제 Google Sheets 51열에서 37–38열(AK:AL)은 유치원 생활 주의사항이다. 두 형식의 열 번호/의미를 서로 전파하지 않는다. Sheets의 실제 헤더는 [`tally-sheets-intake-contract.md`](tally-sheets-intake-contract.md)와 기계 판독 manifest에서 확인한다.
+
 | CSV 열 | CSV에서 확인된 제목/범주 | 관찰된 응답 구조 | ERP 대상 후보 | 상태 및 처리 |
 |---|---|---|---|---|
 | 1 | `Submission ID` | 제출 식별자 후보 열 | `sourceSubmissionId` | `VERIFIED_FROM_CSV`; 진위·안정성·webhook 신뢰는 `PENDING_VERIFICATION` |
@@ -109,8 +111,8 @@ CSV parser 검증은 Tally webhook payload 검증과 별개다. 실제 webhook A
 
 ## MVP 4 — Google Sheets 접수 계약
 
-사용자가 제공한 `시트1` 원본 구조 계약은 51열(A:AY)이며 `docs/tally-sheets-intake-contract.md`에 범위별로 기록했다. 이번 Codex 세션은 원본/개발 spreadsheet를 조회하지 않았으므로 실제 51개 헤더 문자열이나 응답 값을 재검증하지 않았다. 개별 헤더가 확인되지 않아 실제 열 binding은 모두 `PENDING_VERIFICATION`이다.
+이번 Codex 세션은 원본 spreadsheet의 metadata와 헤더 범위 `시트1!A1:AY1`만 읽었다. 원본 제목과 tab/sheetId, timezone/grid 폭을 확인했고 51개 헤더가 manifest와 51/51 exact match 했다. 응답 데이터 행은 읽지 않았다. per-column ERP 후보는 확인된 헤더 문구에서 도출했지만 Tally question IDs, response types, requiredness, conditional logic 및 승인된 ERP binding은 `PENDING_VERIFICATION`이다.
 
 55열 CSV parser와 구분되는 `guardian-auth-server/tally-admission-sheets.js`의 get-only adapter 및 51열 합성 테스트를 추가했다. 헤더는 입력된 정확한 51개 manifest와 순서/중복을 검증하고, 명시적으로 검증된 binding만 허용한다. adapter는 고정 원본 ID와 `시트1!A:AY` 읽기 범위만 요청하며 원장 쓰기 API를 제공하지 않는다. 실제 API client/credential/scheduler는 연결하지 않았다.
 
-`Submission ID` 기반 지문 비교는 합성 pure helper로 동일 ID·동일 내용 재전송과 내용 충돌을 분리한다. 영속 cursor, 재시도 저장소, intake workflow 연계 및 신규 접수 저장은 구현/활성화하지 않았다. 실제 승인/계약 완료는 계속 차단되고 모든 normalized intake는 `NEEDS_REVIEW`다. 선택 동의는 기본 false, 확인되지 않은 조건식/필수 여부/계약·개인정보 동의 의미는 pending이다. 마케팅 별도 열은 추정하지 않는다.
+`Submission ID` 기반 지문 비교는 pure helper에서 keyed HMAC으로 동일 ID·동일 내용 재전송과 내용 충돌을 분리한다. 영속 cursor, 재시도 저장소, intake workflow 연계 및 신규 접수 저장은 구현/활성화하지 않았다. 실제 승인/계약 완료는 계속 차단되고 모든 normalized intake는 `NEEDS_REVIEW`다. 39–48열은 5개의 개별 동의 후보 쌍으로 나누지만 응답 의미는 pending이다. AW 사진·영상 선택 동의는 기본 false, 별도 마케팅 수신 열은 발견되지 않았다. 열 37–38은 기생충 관련이 아니라 유치원 생활 주의사항이다.

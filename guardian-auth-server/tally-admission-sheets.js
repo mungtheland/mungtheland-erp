@@ -1,10 +1,11 @@
 'use strict';
 
 const { createHmac } = require('node:crypto');
+const { HEADER_MANIFEST } = require('./tally-admission-sheets.manifest');
 
-const SHEET_ID = '1p_kj7avwmGvF-QST3Az6-FXo-sQoin6MvwChOKZphbo';
-const TAB_NAME = '시트1';
-const EXPECTED_COLUMN_COUNT = 51;
+const SHEET_ID = HEADER_MANIFEST.spreadsheetId;
+const TAB_NAME = HEADER_MANIFEST.tabName;
+const EXPECTED_COLUMN_COUNT = HEADER_MANIFEST.columnCount;
 const SOURCE_COLUMN_RANGES = Object.freeze({
   submission: [0, 2], guardian: [3, 6], dog: [7, 14], behaviour: [15, 26],
   health: [27, 35], cautions: [36, 37], consents: [38, 47], photoVideo: [48, 48],
@@ -121,7 +122,7 @@ function reconcileSheetsDuplicateValues(first, second, { sourceVerified = false 
 }
 
 /** The port exposes only get; there is deliberately no write/update/append surface. */
-function createReadOnlySheetsIntakeAdapter({ reader, spreadsheetId, expectedHeaders, bindings, requiredFields = [], fingerprintKey } = {}) {
+function createReadOnlySheetsIntakeAdapter({ reader, spreadsheetId, expectedHeaders = HEADER_MANIFEST.headers, bindings, requiredFields = [], fingerprintKey } = {}) {
   if (!reader || typeof reader.get !== 'function' || Object.keys(reader).some(key => key !== 'get')) {
     throw sheetsError('SHEETS_INTAKE_READ_ONLY_PORT_REQUIRED');
   }
@@ -159,7 +160,7 @@ function fingerprintSheetsSubmission(normalizedRecord) {
 }
 
 module.exports = {
-  SHEET_ID, TAB_NAME, EXPECTED_COLUMN_COUNT, SOURCE_COLUMN_RANGES,
+  SHEET_ID, TAB_NAME, EXPECTED_COLUMN_COUNT, SOURCE_COLUMN_RANGES, HEADER_MANIFEST,
   validateHeaderManifest, normalizeSheetRow, reconcileSheetsDuplicateValues,
   createReadOnlySheetsIntakeAdapter, classifySubmissionReplay, fingerprintSheetsSubmission
 };

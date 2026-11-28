@@ -118,9 +118,9 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 
 ## MVP 3단계 보완 — CSV 열 구조 기반 로컬 진단
 
-- 사용자 제공 CSV 관찰 기준: 1개 테스트 응답/55열, 열 1–3 제출 식별·응답자 식별·제출시각, 보호자 연락처 중복(5/54), 비상연락처 중복(6/55), 4–40 안전정보 범주, 37–38 기생충 공란, 계약/확인 영역 41–50, 사진·영상 선택 동의 51, 전자서명/서명자 52–53. 이는 CSV 증거이며 Tally 질문 ID나 webhook 계약 검증이 아니다.
+- 과거 사용자 제공 55열 CSV 요약에는 자체 CSV의 37–38열 기생충 공란 관찰이 기재돼 있었다. 이는 51열 Sheets와 다른 source layout이며 Sheets의 37–38열 의미로 사용하면 안 된다. 이번 실제 Sheets manifest에서 37–38열(AK:AL)은 유치원 생활 주의사항으로 확인했다. 두 parser/manifest는 열 계약을 분리한다.
 - `guardian-auth-server/tally-admission-csv.js`와 합성 fixture/parser 테스트는 55열 shape, 확인된 위치의 헤더, 중복 연락처 상태 분류, 동의 쌍 중복/충돌, 선택 동의 기본 false, 서명 참조 형식 및 민감값 비노출을 검증한다. 실제 응답 원본과 실제 식별자는 저장하지 않는다.
-- 실제 Tally ID·질문 타입·조건부/필수 규칙, 중복 열 출처 우선순위, 동의 쌍의 내부 질문 ID/의미, 기생충 문항 공란의 원인, webhook 서명 및 재시도 안정성은 `PENDING_VERIFICATION`이다.
+- 실제 Tally ID·질문 타입·조건부/필수 규칙, CSV와 Sheets 열 간 교차 매핑, 동의 쌍의 내부 질문 ID/응답 의미, webhook 서명 및 재시도 안정성은 `PENDING_VERIFICATION`이다.
 - 최종 회귀: 입소 workflow+CSV 합성 테스트 31 PASS, `npm.cmd run check` 통과, `npm.cmd run test:ci` 통합 PASS 표식 83개 및 TAP 200개, 실패 0개. 실 Tally 및 외부 데이터 접근/변경은 0건.
 - 다음 게이트: 양식 관리자가 비식별 질문 ID/설정 export와 webhook 인증·재시도 계약을 제공하고 실제 계약/개인정보 문서 게시본을 대조해야 한다. 운영 연동 및 69단계 승인 B/C는 별도 승인 전까지 수행하지 않는다.
 
@@ -140,7 +140,7 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 
 ## MVP 4 — 기존 Tally Google Sheets 접수
 
-- 제공된 원본 계약은 51열 `시트1`(A:AY), 테스트 응답 1건이다. 이 단계에서는 두 spreadsheet를 실제 조회하지 않았고 원본/개발 시트는 미변경이다. 정확한 51개 헤더 문자열이 없어 실제 source manifest와 ERP field binding은 미확정이다.
+- 메타데이터 1회와 `시트1!A1:AY1` 헤더 전용 조회 4회를 수행했다. 탭 sheetId 0, 51열, Etc/GMT를 확인했다. 데이터 행은 읽지 않았다. 비교 과정에서 manifest 문자 차이 1건을 수정했고, 최종 51개 실제 헤더와 정확히 일치한다.
 - 새 `guardian-auth-server/tally-admission-sheets.js`는 고정 ID/탭/읽기 범위의 get-only adapter, manifest 순서/중복 검사, explicit binding gate, 안전한 정규화·필수값/조건 검증 경계, signature 민감값 비노출 및 exact submission fingerprint replay 분류를 제공한다. 신청 workflow나 영속 저장소에는 연결하지 않았다.
-- CSV 55열과 Sheets 51열은 서로 다른 계약으로 유지한다. 실제 동의 의미, 조건식, 제출 ID 안정성, 읽기 권한, 스케줄·cursor·실패 재시도 정책은 미확정이며 운영 연동은 `BLOCKED`다.
+- CSV 55열과 Sheets 51열은 서로 다른 계약으로 유지한다. 특히 Sheets 37–38열은 유치원 생활 주의사항이며 CSV와 같은 열 의미로 취급하지 않는다. 헤더 기반 ERP 필드는 후보 단계이며 Tally 질문 ID, 동의 응답 의미, 조건식, requiredness, 영속 cursor·실패 재시도 정책은 미확정이라 운영 연동은 `BLOCKED`다.
 - 로컬 합성 검증만 수행한다. 69단계 TEST 원장 초기화 B와 배포 C는 미승인 상태로 유지한다.

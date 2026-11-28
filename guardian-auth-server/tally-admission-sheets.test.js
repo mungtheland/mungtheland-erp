@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   SHEET_ID, TAB_NAME, EXPECTED_COLUMN_COUNT, SOURCE_COLUMN_RANGES,
-  validateHeaderManifest, normalizeSheetRow, reconcileSheetsDuplicateValues,
+  HEADER_MANIFEST, validateHeaderManifest, normalizeSheetRow, reconcileSheetsDuplicateValues,
   createReadOnlySheetsIntakeAdapter, classifySubmissionReplay, fingerprintSheetsSubmission
 } = require('./tally-admission-sheets');
 
@@ -60,6 +60,26 @@ test('source schema enforces exactly 51 unique headers in their expected order',
   const duplicate = [...headers]; duplicate[3] = duplicate[2];
   assert.throws(() => validateHeaderManifest(duplicate, duplicate), code('SHEETS_INTAKE_HEADER_MISMATCH'));
   assert.throws(() => validateHeaderManifest([...headers, 'NEW'], [...headers, 'NEW']), code('SHEETS_INTAKE_SCHEMA_PENDING'));
+});
+
+test('captured source manifest is 51 exact ordered headers with distinct consent groups', () => {
+  assert.equal(HEADER_MANIFEST.sourceEvidence, 'CONNECTED_SHEETS_HEADER_RANGE_A1_AY1');
+  assert.equal(HEADER_MANIFEST.spreadsheetId, SHEET_ID);
+  assert.equal(HEADER_MANIFEST.range, 'A1:AY1');
+  assert.equal(HEADER_MANIFEST.columnCount, 51);
+  assert.equal(HEADER_MANIFEST.columns.length, 51);
+  assert.equal(validateHeaderManifest(HEADER_MANIFEST.headers, HEADER_MANIFEST.headers), true);
+  assert.deepEqual(HEADER_MANIFEST.columns.slice(36, 38).map(column => column.erpCandidate), ['daycareCautions', 'daycareCautionDetails']);
+  assert.deepEqual(HEADER_MANIFEST.consentGroups.map(group => group.id), [
+    'contractTerms', 'incidentLiability', 'truthfulSafetyDisclosure', 'emergencyCare', 'personalDataUse'
+  ]);
+  assert.deepEqual(HEADER_MANIFEST.consentGroups.map(group => group.responseMeaning), Array(5).fill('PENDING_VERIFICATION'));
+  const changed = [...HEADER_MANIFEST.headers]; changed[0] = 'Different header';
+  assert.throws(() => validateHeaderManifest(changed, HEADER_MANIFEST.headers), code('SHEETS_INTAKE_HEADER_MISMATCH'));
+  const reordered = [...HEADER_MANIFEST.headers]; [reordered[0], reordered[1]] = [reordered[1], reordered[0]];
+  assert.throws(() => validateHeaderManifest(reordered, HEADER_MANIFEST.headers), code('SHEETS_INTAKE_HEADER_MISMATCH'));
+  assert.throws(() => validateHeaderManifest(HEADER_MANIFEST.headers.slice(0, 50), HEADER_MANIFEST.headers), code('SHEETS_INTAKE_SCHEMA_PENDING'));
+  assert.throws(() => validateHeaderManifest([...HEADER_MANIFEST.headers, 'Extra'], [...HEADER_MANIFEST.headers, 'Extra']), code('SHEETS_INTAKE_SCHEMA_PENDING'));
 });
 
 test('unverified or reordered column binding fails closed without returning source values', () => {
