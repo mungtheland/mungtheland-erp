@@ -19,8 +19,8 @@ const endpoints = {
 };
 const callbackPath = '/oauth/callback';
 const ownerAccountPin = '0b282505d57e7f446fed0bfa5364d5e883dca171fd5d353ca6b836f53398d0c2';
-const liveAuthorizationApproval = null;
-const liveMetadataApproval = null;
+const readOnlyApprovalReference = 'ERP-ISSUANCE-OAUTH-READ-20261128-01';
+const tokenInfoContentType = 'application/x-www-form-urlencoded;charset=UTF-8';
 
 class ReviewError extends Error {}
 function requireEvidence(condition, code) {
@@ -105,11 +105,31 @@ function validLifetime(value) {
   return seconds * 1000;
 }
 
+function sheetsMetadataUrl(config) {
+  const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}`);
+  url.searchParams.set('fields', 'spreadsheetId,properties(timeZone)');
+  return url.href;
+}
+
+function assertApprovedTransport(config, url, options) {
+  requireEvidence(isDedicatedConfig(config), 'DEDICATED_CONFIGURATION_INVALID');
+  const allowsPost = options.method === 'POST' && (
+    (url === endpoints.token && options.body instanceof URLSearchParams &&
+      options.body.get('grant_type') === 'authorization_code') ||
+    (url === endpoints.tokenInfo && options.body === undefined &&
+      options.headers?.['content-type'] === tokenInfoContentType)
+  );
+  const allowsRead = options.method === 'GET' && options.body === undefined &&
+    (url === endpoints.account || url === sheetsMetadataUrl(config));
+  requireEvidence(allowsPost || allowsRead, 'REQUEST_OUTSIDE_READ_ONLY_APPROVAL');
+}
+
 async function verifyCallback({ config, client, authorization, callback, requestJson, readMetadata = false, now = Date.now }) {
   requireEvidence(isDedicatedConfig(config) && authorization.workbookId === config.spreadsheetId &&
     authorization.url.searchParams.get('client_id') === client.id, 'DEDICATED_CONFIGURATION_INVALID');
   const code = validateCallback(callback, authorization);
   const call = async (url, options, failure) => {
+    assertApprovedTransport(config, url, options);
     try { return await requestJson(url, options); }
     catch { throw new ReviewError(failure); }
   };
@@ -135,7 +155,9 @@ async function verifyCallback({ config, client, authorization, callback, request
     requireEvidence(now() < exchangeExpiry, 'TOKEN_EXPIRED');
     const bearer = { authorization: `Bearer ${token}` };
     const inspectionStarted = now();
-    const info = await call(endpoints.tokenInfo, { method: 'POST', headers: bearer }, 'TOKEN_METADATA_UNVERIFIED');
+    const info = await call(endpoints.tokenInfo, {
+      method: 'POST', headers: { ...bearer, 'content-type': tokenInfoContentType }
+    }, 'TOKEN_METADATA_UNVERIFIED');
     requireEvidence(info?.aud === client.id && (info.azp === undefined || info.azp === client.id), 'TOKEN_CLIENT_MISMATCH');
     requireEvidence(soleScope(info.scope), 'TOKEN_SCOPE_MISMATCH');
     const expiresAt = Math.min(exchangeExpiry, inspectionStarted + validLifetime(info.expires_in));
@@ -148,13 +170,11 @@ async function verifyCallback({ config, client, authorization, callback, request
     checkExpiry();
     if (!readMetadata) return { status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'NOT_RUN' };
 
-    const metadataUrl = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}`);
-    metadataUrl.searchParams.set('fields', 'spreadsheetId,properties(timeZone)');
-    const sheet = await call(metadataUrl.href, { method: 'GET', headers: bearer }, 'TEST_METADATA_UNVERIFIED');
+    const sheet = await call(sheetsMetadataUrl(config), { method: 'GET', headers: bearer }, 'TEST_METADATA_UNVERIFIED');
     checkExpiry();
     requireEvidence(sheet?.spreadsheetId === config.spreadsheetId && sheet.properties?.timeZone === 'Asia/Seoul',
       'TEST_METADATA_MISMATCH');
-    return { status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'METADATA_ONLY' };
+    return { status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'METADATA_ONLY', spreadsheetIdMatched: true, timeZone: 'Asia/Seoul' };
   } finally {
     token = undefined;
     exchanged = undefined;
@@ -213,27 +233,32 @@ async function requestGoogleJson(url, options) {
   return response.json();
 }
 
+function parseCommandLine(args) {
+  if (!args.length || (args.length === 1 && args[0] === '--help')) return 'help';
+  if (args.length === 1 && args[0] === '--check-config') return 'check-config';
+  requireEvidence(args.length === 4 && args[0] === '--authorize' && args[1] === '--read-metadata' &&
+    args[2] === '--approval', 'READ_ONLY_MODE_REQUIRED');
+  requireEvidence(args[3] === readOnlyApprovalReference, 'READ_ONLY_APPROVAL_MISMATCH');
+  return 'read-metadata';
+}
+
 async function main(args) {
-  if (!args.length || (args.length === 1 && args[0] === '--help')) {
-    console.log('Usage: node scripts/issuance-test-oauth.cjs --check-config | --authorize [--read-metadata]');
+  const mode = parseCommandLine(args);
+  if (mode === 'help') {
+    console.log('Usage: node scripts/issuance-test-oauth.cjs --check-config | --authorize --read-metadata --approval <reference>');
     return;
-  }
-  const mode = args.join(' ');
-  requireEvidence(['--check-config', '--authorize', '--authorize --read-metadata'].includes(mode), 'INVALID_OPTIONS');
-  const readMetadata = mode === '--authorize --read-metadata';
-  if (mode !== '--check-config') {
-    requireEvidence(liveAuthorizationApproval, 'LIVE_AUTHORIZATION_APPROVAL_REQUIRED');
-    if (readMetadata) requireEvidence(liveMetadataApproval, 'LIVE_METADATA_APPROVAL_REQUIRED');
   }
   const client = validateDesktopConfig(readIgnoredJson(oauthPath, 'OAUTH_JSON_MISSING'));
   const config = readIgnoredJson(environmentPath, 'TEST_ENVIRONMENT_JSON_MISSING');
   requireEvidence(isDedicatedConfig(config), 'DEDICATED_CONFIGURATION_INVALID');
-  if (mode === '--check-config') {
+  if (mode === 'check-config') {
     console.log('Local Desktop OAuth and TEST target configuration checked. No network request.');
     return;
   }
   const received = await receiveCallback(client.id, config);
-  console.log(JSON.stringify(await verifyCallback({ config, client, ...received, requestJson: requestGoogleJson, readMetadata })));
+  console.log(JSON.stringify(await verifyCallback({
+    config, client, ...received, requestJson: requestGoogleJson, readMetadata: true
+  })));
 }
 
 if (require.main === module) {
@@ -246,4 +271,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { validateDesktopConfig, newAuthorization, validateCallback, verifyCallback, receiveCallback };
+module.exports = {
+  validateDesktopConfig, newAuthorization, validateCallback, verifyCallback, receiveCallback,
+  parseCommandLine, assertApprovedTransport
+};

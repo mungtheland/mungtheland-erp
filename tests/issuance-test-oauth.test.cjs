@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const { once } = require('node:events');
 const { driveFileScope } = require('../scripts/build-pass-issuance-v2-request.cjs');
 const { collectKnownTargets } = require('../scripts/check-pass-issuance-environment.cjs');
-const { validateDesktopConfig, newAuthorization, verifyCallback, receiveCallback } =
+const { validateDesktopConfig, newAuthorization, verifyCallback, receiveCallback, parseCommandLine, assertApprovedTransport } =
   require('../scripts/issuance-test-oauth.cjs');
 
 const configPath = process.env.ISSUANCE_TEST_LOCAL_CONFIG;
@@ -24,17 +24,23 @@ const desktopFixture = {
 const client = validateDesktopConfig(desktopFixture);
 const known = collectKnownTargets();
 
-test('Desktop configuration and locked CLI reject unexpected input without network', () => {
+test('Desktop configuration and CLI require the exact read-only mode and approval', () => {
   assert.throws(() => validateDesktopConfig({ web: desktopFixture.installed }), /DESKTOP_CLIENT_CONFIGURATION_INVALID/);
   assert.throws(() => validateDesktopConfig({ installed: { ...desktopFixture.installed, project_id: 'other' } }),
     /DESKTOP_CLIENT_CONFIGURATION_INVALID/);
   for (const args of [['--authorize'], ['--authorize', '--read-metadata']]) {
     const run = spawnSync(process.execPath, ['scripts/issuance-test-oauth.cjs', ...args], { encoding: 'utf8' });
     assert.equal(run.status, 1);
-    assert.match(run.stderr, /LIVE_AUTHORIZATION_APPROVAL_REQUIRED/);
+    assert.match(run.stderr, /READ_ONLY_MODE_REQUIRED/);
   }
   const invalid = spawnSync(process.execPath, ['scripts/issuance-test-oauth.cjs', '--read-metadata'], { encoding: 'utf8' });
-  assert.match(invalid.stderr, /INVALID_OPTIONS/);
+  assert.match(invalid.stderr, /READ_ONLY_MODE_REQUIRED/);
+  const approved = ['--authorize', '--read-metadata', '--approval', 'ERP-ISSUANCE-OAUTH-READ-20261128-01'];
+  for (const reference of ['ERP-ISSUANCE-A-20261127-01', 'B', 'C', '']) {
+    assert.throws(() => parseCommandLine([...approved.slice(0, 3), reference]), /READ_ONLY_APPROVAL_MISMATCH/);
+  }
+  assert.equal(parseCommandLine(approved), 'read-metadata');
+  assert.throws(() => parseCommandLine([...approved, '--other-file']), /READ_ONLY_MODE_REQUIRED/);
 });
 
 function pickerCallback(url, patch = {}) {
@@ -74,8 +80,11 @@ async function mockSession(options = {}) {
       return send(200, { token_type: 'Bearer', access_token: 'mock-token', scope: driveFileScope, expires_in: 30, ...options.exchange });
     }
     if (request.headers.authorization !== 'Bearer mock-token') return send(401, {});
-    if (route === '/tokeninfo')
+    if (route === '/tokeninfo') {
+      if (request.method !== 'POST' || request.headers['content-type'] !== 'application/x-www-form-urlencoded;charset=UTF-8')
+        return send(400, {});
       return send(200, { aud: client.id, scope: driveFileScope, expires_in: '30', ...options.tokenInfo });
+    }
     if (route === '/drive/v3/about') {
       if (request.method !== 'GET' || localUrl.searchParams.get('fields') !== 'user(emailAddress)') return send(400, {});
       if (options.expireAfterAccount) clock += 31000;
@@ -140,9 +149,29 @@ test('valid mock exchange verifies account and reads metadata only with explicit
   assert.deepEqual(offlineRead.result, { status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'NOT_RUN' });
   assert.deepEqual(offlineRead.calls, ['/token', '/tokeninfo', '/drive/v3/about']);
   const metadata = await mockSession({ readMetadata: true });
-  assert.deepEqual(metadata.result, { status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'METADATA_ONLY' });
+  assert.deepEqual(metadata.result, {
+    status: 'AUTHORIZATION_CHECKED', sheetsAccess: 'METADATA_ONLY', spreadsheetIdMatched: true, timeZone: 'Asia/Seoul'
+  });
   assert.equal(metadata.calls.length, 4);
   assert.equal(metadata.calls[3], `/v4/spreadsheets/${config.spreadsheetId}`);
+});
+
+test('static source and transport reject Sheets writes and all other file reads', { skip: !config }, () => {
+  const source = fs.readFileSync(require.resolve('../scripts/issuance-test-oauth.cjs'), 'utf8');
+  assert.doesNotMatch(source, /batchUpdate|appendRow|setValues|values\.get|includeGridData|insertSheet|[^\w]DELETE[^\w]|[^\w]PATCH[^\w]/);
+  assert.equal((source.match(/sheets\.googleapis\.com/g) ?? []).length, 1);
+  const target = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}`;
+  const metadata = target + '?fields=spreadsheetId%2Cproperties%28timeZone%29';
+  assert.doesNotThrow(() => assertApprovedTransport(config, metadata, { method: 'GET' }));
+  for (const [url, method] of [
+    [target + ':batchUpdate', 'POST'], [metadata, 'PATCH'], [metadata, 'POST'], [target, 'GET'],
+    [target + '/values/A1', 'GET'], [metadata + '&includeGridData=true', 'GET'],
+    ['https://www.googleapis.com/drive/v3/files', 'GET'],
+    ...[...known.erpSpreadsheetIds, ...known.guardianWorkbookIds].map(id =>
+      [metadata.replace(config.spreadsheetId, id), 'GET'])
+  ]) {
+    assert.throws(() => assertApprovedTransport(config, url, { method }), /REQUEST_OUTSIDE_READ_ONLY_APPROVAL/);
+  }
 });
 
 test('invalid callbacks fail without exchanging a code', { skip: !config }, async () => {
