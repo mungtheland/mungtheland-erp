@@ -1,0 +1,32 @@
+{
+  "fixtureKind": "SYNTHETIC_ONLY",
+  "contractStatus": "UNAPPROVED_DRAFT",
+  "applicationId": "SYN-APP-0001",
+  "revision": 1,
+  "applicationStatusPolicy": "UNDECIDED",
+  "contractVersion": null,
+  "privacyNoticeVersion": null,
+  "consentEvidencePolicy": "UNDECIDED",
+  "serverIdentityVerifier": null,
+  "applicant": {
+    "guardianId": "SYN-CUS-0001",
+    "guardianName": "Synthetic Guardian",
+    "phone": "synthetic-placeholder",
+    "emergencyPhone": null
+  },
+  "pet": {
+    "dogId": "SYN-DOG-0001",
+    "dogName": "Synthetic Dog",
+    "breed": null,
+    "birthDate": null,
+    "sex": null,
+    "neutered": null,
+    "weight": null,
+    "vaccines": null,
+    "health": null,
+    "notes": null
+  },
+  "consentEvidence": [],
+  "active": false,
+  "externalCallsAllowed": false
+}

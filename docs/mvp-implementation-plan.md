@@ -83,9 +83,19 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 
 ## 다음 Codex 작업 지시서
 
-아래 지시를 다음 작업으로 권고한다. 현재 감사에서는 Tally, 운영 Sheets, Firebase, Apps Script에 접근하지 않는다.
+다음 구현은 운영자 결정사항을 받은 뒤 수행한다. Tally, 운영 Sheets, Firebase, Apps Script 접근이나 배포는 별도 승인 없이는 하지 않는다.
 
-> `feature/staff-attendance-desktop`에서 입소 신청과 계약의 필드·상태 계약을 고정하는 문서 및 로컬 테스트 작업을 수행해줘. `src/Code.js`, 기존 고객/반려견 스키마, `docs/daycare-service-agreement-draft.md`, `docs/daycare-operating-policy-draft.md`, 개인정보 절차를 대조해 접수 필드, 필수/선택, 계약 버전, 동의 증거, 신청 ID, 수정/철회 상태, 서버 검증 주체를 표로 정리해. 확인된 코드 사실과 운영자 결정 필요 항목을 구분하고 미확정 정책은 임의 확정하지 마. 외부 API·Sheets·Apps Script 실행, 원장 쓰기, 배포, OAuth/IAM 변경 없이 합성 fixture 계약 테스트만 추가해. 기존 변경사항과 stash를 보존하고 관련 로컬 회귀를 실행해. MVP 보고서에는 테스트 결과와 다음 게이트를 기록해.`
+> 승인된 입소 신청 필수/선택 필드, 보호자 본인확인 방식, 계약 버전·체결 증거 기준, 개인정보 처리·보유/철회 정책, 신청 상태 전이와 직원 검토 책임자를 `docs/admission-intake-contract.md`에 반영해. 기존 `src/Code.js` 등록 흐름과 호환성 검토 후 합성 fixture 계약 검증을 확장하고, 그 결정만 필요한 로컬 모듈/테스트로 구현해. 미승인 정책을 기본값으로 만들지 마. 공개 API, 실제 원장 쓰기, Apps Script 실행·배포, OAuth/IAM 변경은 하지 마. 별도 격리 저장소와 테스트 자원이 승인되기 전에는 PLAN_ONLY/차단 경계를 유지해.`
+
+## MVP 1단계 진행 기록 — 입소 신청·계약 계약 조사
+
+- 결과 문서: `docs/admission-intake-contract.md`. 기존 고객·반려견 필드, 현재 등록 화면/함수의 필수 검증, 신청·계약·동의·상태 항목의 미구현 여부를 분리했다.
+- 합성 fixture 계약 검사: `node --test tests/admission-contract.contract.test.cjs` 4개 통과, 0 실패.
+- 구문 검사: `npm.cmd run check` 통과.
+- 전체 로컬 CI 회귀: `npm.cmd run test:ci` 성공. 실행 출력의 통합 PASS 표식 83개와 TAP 통과 사례 169개, 실패 0개를 확인했다. 합성/모의 결과이며 실서비스 검증은 아니다.
+- 외부 API, Sheets, Apps Script, Firebase 및 운영 원장 조회/쓰기: 0회.
+- 현재 게이트: 신청 채널과 본인 확인, 필수/선택 필드, 계약 버전·체결 증거, 개인정보 처리 근거/보유·철회, 상태 전이와 검토 책임자를 운영자가 확정해야 한다. 실제 Tally 연동과 접수 저장은 미구현이며 이번 단계에서 추가하지 않았다.
+- 다음 게이트: 위 결정사항을 승인된 필드·상태 계약으로 반영하고, 그 후에만 합성 접수 어댑터/API 경계 및 별도 격리 저장소를 설계한다. 운영/테스트 원장 초기화나 배포 승인은 별도다.
 
 ## 제외 및 보류 항목
 
