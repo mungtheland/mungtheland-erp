@@ -52,9 +52,10 @@ try {
         assert.equal(algorithm, 'SHA_256');
         assert.equal(charset, 'UTF_8');
         // Stand-in IDs exercise the generated pins without putting real IDs in the test.
-        if (id === testId) return [...Buffer.from(workbookPin, 'hex')];
-        if (id === testScriptId) return [...Buffer.from(scriptPin, 'hex')];
-        return [...createHash('sha256').update(id).digest()];
+        const bytes = id === testId ? Buffer.from(workbookPin, 'hex')
+          : id === testScriptId ? Buffer.from(scriptPin, 'hex')
+          : createHash('sha256').update(id).digest();
+        return Array.from(bytes, byte => byte > 127 ? byte - 256 : byte);
       }
     },
     ScriptApp: { getScriptId: () => scriptId },
@@ -74,6 +75,15 @@ try {
   });
   vm.runInContext(code, context);
   for (const id of new Set([...sheets.erpSpreadsheetIds, ...sheets.guardianWorkbookIds, undefined, '', ` ${testId}`])) {
+    assert.throws(() => context.mdReadPassIssuanceTestWorkbook_(id), /TEST_WORKBOOK_TARGET_REJECTED/);
+  }
+  const erpId = sheets.erpSpreadsheetIds[0];
+  for (const id of [
+    `https://docs.google.com/spreadsheets/d/${testId}/edit`,
+    `${testId}\n`,
+    [erpId.slice(0, 10), erpId.slice(10)].join(''),
+    { toString() { throw Error('unexpected target coercion'); } }
+  ]) {
     assert.throws(() => context.mdReadPassIssuanceTestWorkbook_(id), /TEST_WORKBOOK_TARGET_REJECTED/);
   }
   scriptId = sheets.guardianIds[0];
