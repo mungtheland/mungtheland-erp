@@ -1,0 +1,41 @@
+name: Issuance TEST deployment design (disabled)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-test-bundle:
+    # Stage 69 is design-only. A separate reviewed revision is required to enable this job.
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    environment: issuance-test-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate exact TEST targets and prepare local bundle only
+        env:
+          ISSUANCE_TEST_APPS_SCRIPT_ID: ${{ secrets.ISSUANCE_TEST_APPS_SCRIPT_ID }}
+          ISSUANCE_TEST_SPREADSHEET_ID: ${{ secrets.ISSUANCE_TEST_SPREADSHEET_ID }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { buildPassIssuanceTestBundle, matchesDedicatedTargets } = require('./scripts/build-pass-issuance-test.cjs');
+          const scriptId = process.env.ISSUANCE_TEST_APPS_SCRIPT_ID;
+          const spreadsheetId = process.env.ISSUANCE_TEST_SPREADSHEET_ID;
+          if (!matchesDedicatedTargets({ scriptId, spreadsheetId })) {
+            console.error('ISSUANCE_TEST_TARGETS_REJECTED');
+            process.exit(1);
+          }
+          const staging = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, 'issuance-test-'));
+          buildPassIssuanceTestBundle(path.join(staging, 'bundle'));
+          fs.writeFileSync(path.join(staging, '.clasp.json'), JSON.stringify({ scriptId, rootDir: 'bundle' }), { flag: 'wx', mode: 0o600 });
+          console.log('TEST targets verified and local bundle prepared');
+          NODE
