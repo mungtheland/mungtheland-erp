@@ -4,10 +4,15 @@ const APPLICATION_STATES = Object.freeze([
   'RECEIVED', 'NEEDS_REVIEW', 'APPROVED', 'CONTRACTED', 'REJECTED',
   'WITHDRAWAL_REQUESTED', 'WITHDRAWN'
 ]);
-const TALLY_FIELD_MAPPING = Object.freeze([
+const TALLY_ERP_FIELDS = Object.freeze([
   'guardianName', 'phone', 'emergencyPhone', 'dogName', 'breed', 'birthDate', 'sex',
   'neutered', 'weight', 'vaccines', 'health', 'notes'
-].map(key => Object.freeze({ key, tallyFieldId: null, status: 'PENDING_VERIFICATION' })));
+]);
+const TALLY_RESPONSE_TYPES = Object.freeze(['TEXT', 'PHONE', 'DATE', 'BOOLEAN', 'NUMBER', 'CHOICE', 'MULTI_SELECT', 'FILE_REFERENCE']);
+const TALLY_FIELD_MAPPING = Object.freeze(TALLY_ERP_FIELDS.map(erpField => Object.freeze({
+  erpField, tallyFieldId: null, responseType: null, required: null, conditional: null,
+  status: 'PENDING_VERIFICATION'
+})));
 const APPLICATION_DATA_FIELDS = Object.freeze([
   'guardianName', 'phone', 'emergencyPhone', 'dogName', 'breed', 'birthDate', 'sex',
   'neutered', 'weight', 'vaccines', 'health', 'notes'
@@ -92,6 +97,62 @@ function normalizeOptionalConsents(input = {}) {
 }
 function canonicalSubmission(value) { return JSON.stringify(value); }
 
+/** Validate a verified mapping definition and map raw answer IDs to the existing ERP contract. */
+function mapTallyAnswers(mapping, answers) {
+  if (!Array.isArray(mapping) || mapping.length !== TALLY_ERP_FIELDS.length ||
+      mapping.some(field => !field || field.status !== 'VERIFIED' || !field.tallyFieldId)) {
+    fail('TALLY_FIELD_MAPPING_PENDING', 409);
+  }
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) fail('TALLY_ANSWERS_INVALID');
+  const logicalFields = new Set();
+  const tallyIds = new Set();
+  for (const field of mapping) {
+    if (!TALLY_ERP_FIELDS.includes(field.erpField) || logicalFields.has(field.erpField) ||
+        typeof field.tallyFieldId !== 'string' || !field.tallyFieldId.trim() ||
+        field.tallyFieldId !== field.tallyFieldId.trim() || tallyIds.has(field.tallyFieldId)) {
+      fail('TALLY_FIELD_MAPPING_INVALID', 409);
+    }
+    if (!TALLY_RESPONSE_TYPES.includes(field.responseType) || typeof field.required !== 'boolean') {
+      fail('TALLY_FIELD_MAPPING_INVALID', 409);
+    }
+    if (field.conditional !== null && (!field.conditional || typeof field.conditional.fieldId !== 'string' ||
+        !field.conditional.fieldId || !Object.hasOwn(field.conditional, 'equals'))) {
+      fail('TALLY_FIELD_MAPPING_INVALID', 409);
+    }
+    logicalFields.add(field.erpField);
+    tallyIds.add(field.tallyFieldId);
+  }
+  if (mapping.some(field => field.conditional && !tallyIds.has(field.conditional.fieldId))) {
+    fail('TALLY_FIELD_MAPPING_INVALID', 409);
+  }
+  if (Object.keys(answers).some(id => !tallyIds.has(id))) fail('TALLY_ANSWER_ID_UNKNOWN');
+  const mapped = {};
+  for (const field of mapping) {
+    const active = field.conditional === null || answers[field.conditional.fieldId] === field.conditional.equals;
+    const present = Object.hasOwn(answers, field.tallyFieldId) && answers[field.tallyFieldId] !== null && answers[field.tallyFieldId] !== '';
+    if (active && field.required && !present) {
+      fail(field.conditional === null ? 'TALLY_REQUIRED_ANSWER_MISSING' : 'TALLY_CONDITIONAL_ANSWER_MISSING');
+    }
+    if (!present) continue;
+    const value = answers[field.tallyFieldId];
+    const valid = field.responseType === 'TEXT' || field.responseType === 'PHONE' || field.responseType === 'DATE' ||
+      field.responseType === 'FILE_REFERENCE'
+      ? typeof value === 'string'
+      : field.responseType === 'BOOLEAN'
+        ? typeof value === 'boolean'
+        : field.responseType === 'NUMBER'
+          ? typeof value === 'number' && Number.isFinite(value)
+          : field.responseType === 'CHOICE'
+            ? typeof value === 'string'
+            : field.responseType === 'MULTI_SELECT'
+              ? Array.isArray(value) && value.every(item => typeof item === 'string')
+              : false;
+    if (!valid) fail('TALLY_ANSWER_TYPE_INVALID');
+    if (active) mapped[field.erpField] = value;
+  }
+  return validateApplicationData(mapped);
+}
+
 /** Synthetic-only in-memory repository. It has no file, Sheets, Firestore, or network adapter. */
 function createSyntheticAdmissionRepository() {
   const records = new Map();
@@ -155,10 +216,9 @@ function createAdmissionWorkflow({ repository, authenticateStaff, authenticateSu
     let source;
     try { source = await authenticateSubmission(credential, rawPayload); } catch (_) { fail('SUBMISSION_SOURCE_UNVERIFIED', 403); }
     if (!source || source.verified !== true || !source.channel || !source.submissionId) fail('SUBMISSION_SOURCE_UNVERIFIED', 403);
-    if (source.channel === 'TALLY' && tallyFieldMapping.some(field => field.status !== 'VERIFIED' || !field.tallyFieldId)) {
-      fail('TALLY_FIELD_MAPPING_PENDING', 409);
-    }
-    const data = validateApplicationData(source.normalizedData || {});
+    const data = source.channel === 'TALLY'
+      ? mapTallyAnswers(tallyFieldMapping, source.answers || {})
+      : validateApplicationData(source.normalizedData || {});
     const contractEvidence = validateContractEvidence(source.contractEvidence);
     const privacyNoticeEvidence = validateNoticeEvidence(source.privacyNoticeEvidence);
     const optionalConsents = normalizeOptionalConsents(source.optionalConsents);
@@ -305,5 +365,5 @@ function createAdmissionWorkflow({ repository, authenticateStaff, authenticateSu
 
 module.exports = {
   APPLICATION_STATES, TALLY_FIELD_MAPPING, DEFAULT_CONTRACT_TARGET, AdmissionError,
-  createSyntheticAdmissionRepository, createAdmissionWorkflow
+  mapTallyAnswers, createSyntheticAdmissionRepository, createAdmissionWorkflow
 };

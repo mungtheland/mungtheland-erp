@@ -107,6 +107,15 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 - 실제 Tally/API, Google Sheets, Apps Script, Firebase 호출·쓰기·배포: 0회.
 - 다음 게이트: 권한 있는 담당자가 기존 Tally의 질문/조건부 규칙/stable 제출 ID와 실제 계약서 v1.0·시행일 2026-12-07을 대조하고, 개인정보 안내 버전 및 실제 admin role source를 확인한다. 이 증거가 생기기 전 실제 접수와 `CONTRACTED` 완료는 BLOCKED로 유지한다.
 
+## MVP 3단계 진행 기록 — Tally 필드 매핑 사전검증
+
+- `docs/tally-admission-field-mapping.md`에 신청 항목별 ERP 후보와 질문 ID/응답 형식/필수/조건부 규칙의 확인 상태를 기록했다. 지정 Tally 페이지는 읽기 도구에서 열리지 않았고 저장소에도 질문 정의나 webhook 계약이 없어 실제 매핑은 모두 `PENDING_VERIFICATION`이다.
+- `mapTallyAnswers`는 검증 완료된 전체 매핑만 허용한다. 미검증/중복/미상 질문 ID, 잘못된 응답 타입, 필수 또는 조건부 응답 누락을 차단한다. 테스트 ID와 조건 규칙은 합성 fixture 전용이다.
+- 제출 원본 ID와 서버 발급 applicationId를 구분하고, 동일 제출 재전송은 기존 신청 반환, 내용 변경은 충돌 처리한다. 실제 Tally 제출 식별자 안정성 및 webhook 인증은 미검증이다.
+- 합성 workflow 회귀: `guardian-auth-server/admission-intake.test.js` 21 PASS, 0 FAIL. 구문 검사 2 PASS, `npm.cmd run check` 통과.
+- 전체 `npm.cmd run test:ci`: 통합 PASS 표식 83개와 TAP 사례 190개, 실패 0개. 보고서 생성기 테스트 24 PASS. 실제 Tally 응답/API/webhook 및 외부 원장 접근·쓰기는 0건.
+- 다음 게이트: 권한 있는 양식 관리자가 질문 ID/응답 형식/필수·조건부 규칙, 제출 ID/서명 계약, 실제 계약서 및 개인정보 안내 버전을 확인한다. 증거 확인 전 실연동은 차단한다. 69단계 원장 초기화 B와 배포 C는 미승인으로 유지한다.
+
 ## 제외 및 보류 항목
 
 - 69단계 전용 TEST 환경 원장 초기화(B)와 Apps Script 배포(C)는 미승인 상태로 둔다.

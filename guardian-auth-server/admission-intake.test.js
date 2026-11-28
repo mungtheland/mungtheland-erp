@@ -3,8 +3,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   TALLY_FIELD_MAPPING, DEFAULT_CONTRACT_TARGET, AdmissionError,
-  createSyntheticAdmissionRepository, createAdmissionWorkflow
+  mapTallyAnswers, createSyntheticAdmissionRepository, createAdmissionWorkflow
 } = require('./admission-intake');
+
+function syntheticVerifiedMapping() {
+  return TALLY_FIELD_MAPPING.map((field, index) => ({
+    ...field,
+    tallyFieldId: `SYNTHETIC-Q-${index + 1}`,
+    responseType: field.erpField === 'weight' ? 'NUMBER' : 'TEXT',
+    required: ['guardianName', 'phone', 'dogName', 'health'].includes(field.erpField),
+    conditional: field.erpField === 'health' ? { fieldId: 'SYNTHETIC-Q-10', equals: 'yes' } : null,
+    status: 'VERIFIED'
+  }));
+}
 
 function fixtureService({ sourceVerification = 'SYNTHETIC_FIXTURE', mapping = TALLY_FIELD_MAPPING } = {}) {
   const repository = createSyntheticAdmissionRepository();
@@ -23,6 +34,7 @@ function fixtureService({ sourceVerification = 'SYNTHETIC_FIXTURE', mapping = TA
           channel: payload.channel || 'SYNTHETIC_FIXTURE',
           submissionId: payload.submissionId,
           receivedAt: payload.receivedAt || '2026-11-28T00:00:00.000Z',
+          answers: payload.answers,
           normalizedData: payload.data || { guardianName: 'Synthetic Guardian', phone: 'synthetic', dogName: 'Synthetic Dog' },
           requiredFieldStatus: payload.requiredFieldStatus === undefined ? 'SYNTHETIC_FIXTURE_COMPLETE' : payload.requiredFieldStatus,
           contractEvidence: payload.contractEvidence === undefined ? {
@@ -58,9 +70,59 @@ function assertCode(expected) {
 
 test('Tally field map remains pending until actual question IDs are verified', () => {
   assert.ok(TALLY_FIELD_MAPPING.length > 0);
-  assert.ok(TALLY_FIELD_MAPPING.every(field => field.status === 'PENDING_VERIFICATION' && field.tallyFieldId === null));
+  assert.ok(TALLY_FIELD_MAPPING.every(field => field.status === 'PENDING_VERIFICATION' && field.tallyFieldId === null &&
+    field.responseType === null && field.required === null && field.conditional === null));
   const { workflow } = fixtureService();
   return assert.rejects(submit(workflow, { channel: 'TALLY' }), assertCode('TALLY_FIELD_MAPPING_PENDING'));
+});
+
+test('synthetic verified mapping converts exact answer IDs into the ERP intake fields', () => {
+  const mapping = syntheticVerifiedMapping();
+  const mapped = mapTallyAnswers(mapping, {
+    'SYNTHETIC-Q-1': 'Synthetic Guardian', 'SYNTHETIC-Q-2': 'Synthetic Phone',
+    'SYNTHETIC-Q-4': 'Synthetic Dog', 'SYNTHETIC-Q-9': 8
+  });
+  assert.deepEqual(mapped, { guardianName: 'Synthetic Guardian', phone: 'Synthetic Phone', dogName: 'Synthetic Dog', weight: 8 });
+});
+
+test('synthetic Tally submission uses mapped answers and keeps source ID separate from server application ID', async () => {
+  const { workflow } = fixtureService({ mapping: syntheticVerifiedMapping() });
+  const result = await submit(workflow, {
+    channel: 'TALLY', submissionId: 'SYNTHETIC-SUBMISSION-1',
+    answers: {
+      'SYNTHETIC-Q-1': 'Synthetic Guardian', 'SYNTHETIC-Q-2': 'Synthetic Phone',
+      'SYNTHETIC-Q-4': 'Synthetic Dog'
+    }
+  });
+  assert.equal(result.application.sourceSubmissionId, 'SYNTHETIC-SUBMISSION-1');
+  assert.notEqual(result.application.applicationId, result.application.sourceSubmissionId);
+  assert.equal(result.application.data.guardianName, 'Synthetic Guardian');
+  assert.equal(Object.hasOwn(result.application.data, 'customerId'), false);
+});
+
+test('synthetic required and conditional answers are enforced without claiming actual Tally rules', () => {
+  const mapping = syntheticVerifiedMapping();
+  assert.throws(() => mapTallyAnswers(mapping, { 'SYNTHETIC-Q-2': 'Synthetic Phone', 'SYNTHETIC-Q-4': 'Synthetic Dog' }),
+    assertCode('TALLY_REQUIRED_ANSWER_MISSING'));
+  assert.throws(() => mapTallyAnswers(mapping, {
+    'SYNTHETIC-Q-1': 'Synthetic Guardian', 'SYNTHETIC-Q-2': 'Synthetic Phone',
+    'SYNTHETIC-Q-4': 'Synthetic Dog', 'SYNTHETIC-Q-10': 'yes'
+  }), assertCode('TALLY_CONDITIONAL_ANSWER_MISSING'));
+  assert.deepEqual(mapTallyAnswers(mapping, {
+    'SYNTHETIC-Q-1': 'Synthetic Guardian', 'SYNTHETIC-Q-2': 'Synthetic Phone',
+    'SYNTHETIC-Q-4': 'Synthetic Dog', 'SYNTHETIC-Q-10': 'no'
+  }), { guardianName: 'Synthetic Guardian', phone: 'Synthetic Phone', dogName: 'Synthetic Dog', vaccines: 'no' });
+});
+
+test('synthetic mapping rejects invalid response types, unknown answer IDs, and duplicate question IDs', () => {
+  const mapping = syntheticVerifiedMapping();
+  assert.throws(() => mapTallyAnswers(mapping, {
+    'SYNTHETIC-Q-1': 'Synthetic Guardian', 'SYNTHETIC-Q-2': 'Synthetic Phone',
+    'SYNTHETIC-Q-4': 'Synthetic Dog', 'SYNTHETIC-Q-9': 'heavy'
+  }), assertCode('TALLY_ANSWER_TYPE_INVALID'));
+  assert.throws(() => mapTallyAnswers(mapping, { 'UNRECOGNIZED-Q': 'value' }), assertCode('TALLY_ANSWER_ID_UNKNOWN'));
+  mapping[1].tallyFieldId = mapping[0].tallyFieldId;
+  assert.throws(() => mapTallyAnswers(mapping, {}), assertCode('TALLY_FIELD_MAPPING_INVALID'));
 });
 
 test('same trusted submission replay returns the original application ID without duplicate creation', async () => {
