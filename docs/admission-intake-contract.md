@@ -71,6 +71,12 @@
 - 실제 보유기간/법적 예외가 확정되기 전 자동 파기 기능은 추가하지 않는다.
 - 실제 Tally/API·Sheets·Apps Script·Firebase 호출과 배포는 이번 작업에서 수행하지 않았다.
 
+## MVP 4 — Tally → Google Sheets 읽기 경계
+
+제공된 시트 계약은 `시트1` A:AY의 51열이다. 기존 CSV 내보내기 parser(55열)와 Sheets parser를 분리한다. 새 `tally-admission-sheets.js`는 get-only port, 정확한 51개 헤더 manifest, 순서가 검증된 명시적 binding을 요구하고 모든 정규화 결과를 `NEEDS_REVIEW`로 둔다. 이 단계에서는 실 API client, 신청 저장소, 주기 실행, cursor 영속화 또는 workflow adapter 연결을 만들지 않았다.
+
+동일 `Submission ID`와 동일 정규화 지문은 replay, 내용이 달라진 동일 ID는 conflict로 분류하는 pure helper를 추가했다. 이 helper는 그 자체로 영속 멱등성을 보장하지 않는다. 승인 전환·계약 완료·고객 자동 연결은 계속 차단된다. 실제 51개 헤더, field mapping, conditionals, 동의 토큰, signature evidence, owner 권한은 아직 검증되지 않았다.
+
 ## MVP 3단계 CSV 구조 보완
 
 사용자가 제공한 55열 CSV 관찰은 `docs/tally-admission-field-mapping.md`에 `VERIFIED_FROM_CSV`로 기록했다. 열 1–3의 제출/응답자/제출시각 헤더, 연락처 중복 열(5/54, 6/55), 동의 영역(41–50), 사진·영상 선택 동의(51), 전자서명/서명자(52–53)의 열 구조를 반영했다. 열 번호는 내부 질문 ID가 아니다.

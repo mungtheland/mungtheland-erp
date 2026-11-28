@@ -137,3 +137,10 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 - 69단계 전용 TEST 환경 원장 초기화(B)와 Apps Script 배포(C)는 미승인 상태로 둔다.
 - 실제 운영 원장·계정·권한·결제 수단·Tally 설정은 이번 감사에서 조회하거나 수정하지 않았다.
 - 운영 기능 삭제/비활성화, 자동 발급·차감 활성화, 신규 클라우드 자원 생성은 계획 범위에 포함하지 않는다.
+
+## MVP 4 — 기존 Tally Google Sheets 접수
+
+- 제공된 원본 계약은 51열 `시트1`(A:AY), 테스트 응답 1건이다. 이 단계에서는 두 spreadsheet를 실제 조회하지 않았고 원본/개발 시트는 미변경이다. 정확한 51개 헤더 문자열이 없어 실제 source manifest와 ERP field binding은 미확정이다.
+- 새 `guardian-auth-server/tally-admission-sheets.js`는 고정 ID/탭/읽기 범위의 get-only adapter, manifest 순서/중복 검사, explicit binding gate, 안전한 정규화·필수값/조건 검증 경계, signature 민감값 비노출 및 exact submission fingerprint replay 분류를 제공한다. 신청 workflow나 영속 저장소에는 연결하지 않았다.
+- CSV 55열과 Sheets 51열은 서로 다른 계약으로 유지한다. 실제 동의 의미, 조건식, 제출 ID 안정성, 읽기 권한, 스케줄·cursor·실패 재시도 정책은 미확정이며 운영 연동은 `BLOCKED`다.
+- 로컬 합성 검증만 수행한다. 69단계 TEST 원장 초기화 B와 배포 C는 미승인 상태로 유지한다.
