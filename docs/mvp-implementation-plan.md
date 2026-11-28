@@ -97,6 +97,16 @@ A안에 따라 신규 고도화보다 기존 Apps Script ERP와 직원 서버를
 - 현재 게이트: 신청 채널과 본인 확인, 필수/선택 필드, 계약 버전·체결 증거, 개인정보 처리 근거/보유·철회, 상태 전이와 검토 책임자를 운영자가 확정해야 한다. 실제 Tally 연동과 접수 저장은 미구현이며 이번 단계에서 추가하지 않았다.
 - 다음 게이트: 위 결정사항을 승인된 필드·상태 계약으로 반영하고, 그 후에만 합성 접수 어댑터/API 경계 및 별도 격리 저장소를 설계한다. 운영/테스트 원장 초기화나 배포 승인은 별도다.
 
+## MVP 2단계 진행 기록 — 정책 반영 및 로컬 workflow
+
+- 정책은 `docs/admission-intake-contract.md`에 반영했다. 계약 후 변경/원본 증거 보존, 신청 철회와 개인정보 삭제 분리, 각기 기본 미선택인 선택 동의, 단계별 신청 상태, 직원/관리자 권한 구분을 기록했다.
+- `guardian-auth-server/admission-intake.js`는 순수 정책 workflow와 `SYNTHETIC_MEMORY_ONLY` repository만 지원한다. 실제 HTTP route, Tally verifier/field mapping, 운영 저장 adapter는 연결하지 않았다. 미확정 Tally 필드 매핑과 실제 계약서 출처는 차단 상태다.
+- 추가 회귀: `guardian-auth-server/admission-intake.test.js` 17 PASS, 0 FAIL.
+- 구문 검사: `npm.cmd run check` 성공.
+- 기존 전체 로컬 회귀: `npm.cmd run test:ci` 성공. 통합 PASS 표식 83개, TAP 사례 186 PASS, 0 FAIL. 합성·모의 검증이며 실제 Tally/운영 동작 증거는 아니다.
+- 실제 Tally/API, Google Sheets, Apps Script, Firebase 호출·쓰기·배포: 0회.
+- 다음 게이트: 권한 있는 담당자가 기존 Tally의 질문/조건부 규칙/stable 제출 ID와 실제 계약서 v1.0·시행일 2026-12-07을 대조하고, 개인정보 안내 버전 및 실제 admin role source를 확인한다. 이 증거가 생기기 전 실제 접수와 `CONTRACTED` 완료는 BLOCKED로 유지한다.
+
 ## 제외 및 보류 항목
 
 - 69단계 전용 TEST 환경 원장 초기화(B)와 Apps Script 배포(C)는 미승인 상태로 둔다.
