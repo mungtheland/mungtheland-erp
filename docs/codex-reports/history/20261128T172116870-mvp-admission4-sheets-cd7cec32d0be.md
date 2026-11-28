@@ -1,11 +1,11 @@
 # Codex work report
 
 - Step: mvp-admission4-sheets
-- Work time (KST): 2026-11-28T17:20:26.384+09:00
+- Work time (KST): 2026-11-28T17:21:16.870+09:00
 - Branch: feature/staff-attendance-desktop
 - Implementation commit: cd7cec32d0bee6bb651fc31f93e2e1ab048965da
 - Implementation push: pushed
-- History: history/20261128T172026384-mvp-admission4-sheets-cd7cec32d0be.md
+- History: history/20261128T172116870-mvp-admission4-sheets-cd7cec32d0be.md
 
 ## Changed files
 
@@ -26,9 +26,11 @@
 | npm.cmd run check | executed | 1 | 0 | 0 |
 | npm.cmd run test:ci (83 PASS labels + 213 TAP cases) | executed | 296 | 0 | 0 |
 | git diff --cached --check | executed | 1 | 0 | 0 |
+| New-CodexReport.ps1 -Mode Validate | executed | 1 | 0 | 0 |
+| scripts/Test-CodexReport.ps1 | executed | 24 | 0 | 0 |
 | Live original/development Sheets access, schema export, persisted cursor/workflow integration | not run | 0 | 0 | 1 |
 
-- Totals: passed 344, failed 0, not run 1
+- Totals: passed 369, failed 0, not run 1
 
 ## Change summary
 
