@@ -143,3 +143,17 @@ Before proposing a separate activation change:
 4. A separately reviewed change must add the explicit upload step, enforce exact target revalidation immediately before upload, and bind the approval to the reviewed revision. The upload may only consume the staged TEST bundle. After a separately approved deployment, independently read back source revision, manifest, generated allowlist and disabled persistence, deployment entry points and visible triggers. On any mismatch, stop and use the dedicated-resource recovery procedure.
 
 To reproduce the static test locally, use a temporary installation of the YAML 1.2 parser package `yaml@2` on Node's module search path and run `node --test tests/issuance-test-deploy-workflow.test.cjs`. To include the exact positive target test, set `ISSUANCE_TEST_LOCAL_CONFIG` to the ignored local configured environment JSON path. The test extracts and runs only the staging step as a local Node process. No GitHub Actions job runs.
+
+### TEST environment protection evidence
+
+The user confirmed saving these settings in **Settings → Environments → issuance-test-deploy**. A subsequent authenticated, read-only GitHub REST check independently matched each item.
+
+| Setting | API evidence |
+| --- | --- |
+| Environment and deployment policy | `issuance-test-deploy` exists and uses selected branches and tags. |
+| Allowed branches and tags | One rule, the exact branch `feature/staff-attendance-desktop`, and zero tag rules. |
+| Administrator bypass | Disabled. |
+| Required reviewers | No required-reviewer rule is configured. Independent review and prevention of self-approval are not in effect. |
+| Environment secrets and variables | Zero environment secrets and zero environment variables. |
+
+The branch restriction and disabled administrator bypass are in place. The required-reviewer prerequisite is still unmet, and no TEST credential configuration was verified. The TEST workflow retains its literal false job condition and has no upload step. The current account owns the ERP workbook, so account-level isolation remains unmet. Effective OAuth, the existing manual deployment target, and approvals B and C remain unresolved.
