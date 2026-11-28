@@ -117,6 +117,96 @@ function normalizeOptionalBoolean(value) {
   return Object.freeze({ status: 'PENDING_SEMANTICS', accepted: null });
 }
 
+function cellPresence(value) { return isNonEmpty(value) ? 'PRESENT' : 'EMPTY'; }
+
+function dateFormatStatus(value) {
+  if (!isNonEmpty(value)) return 'EMPTY';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? 'FORMAT_INVALID' : 'FORMAT_VALID';
+  if (typeof value === 'number') return Number.isFinite(value) ? 'PENDING_VERIFICATION' : 'FORMAT_INVALID';
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(text) && !Number.isNaN(Date.parse(text))) {
+    return 'FORMAT_VALID';
+  }
+  return 'PENDING_VERIFICATION';
+}
+
+/** Safe diagnostics only: never returns cell values, identifiers, signatures, or fingerprints. */
+function diagnoseSheetResponseRow(headers, row, { expectedHeaders = HEADER_MANIFEST.headers } = {}) {
+  validateHeaderManifest(headers, expectedHeaders);
+  if (!Array.isArray(row) || row.length > EXPECTED_COLUMN_COUNT) throw sheetsError('SHEETS_DIAGNOSTIC_ROW_WIDTH_INVALID');
+  const cells = [...row, ...Array(EXPECTED_COLUMN_COUNT - row.length).fill('')];
+  const statusByColumn = HEADER_MANIFEST.columns.map(column => Object.freeze({
+    columnNumber: column.columnNumber,
+    erpCandidate: column.erpCandidate,
+    status: cellPresence(cells[column.columnNumber - 1])
+  }));
+  const fieldStatus = columnNumber => statusByColumn[columnNumber - 1].status;
+  const conditionalDetails = [17, 19, 22, 25, 27, 29, 31, 33, 35, 38].map(columnNumber => Object.freeze({
+    columnNumber, status: fieldStatus(columnNumber), validation: 'PENDING_VERIFICATION'
+  }));
+  const consentGroups = HEADER_MANIFEST.consentGroups.map(group => Object.freeze({
+    id: group.id,
+    columns: group.columns.map(columnNumber => Object.freeze({ columnNumber, status: fieldStatus(columnNumber) })),
+    valueFormat: 'PENDING_VERIFICATION', meaning: 'PENDING_VERIFICATION'
+  }));
+  const signatureReference = Object.freeze({
+    presence: cellPresence(cells[49]),
+    format: isNonEmpty(cells[49]) ? 'PENDING_VERIFICATION' : 'EMPTY',
+    fieldType: 'PENDING_VERIFICATION'
+  });
+  return Object.freeze({
+    diagnosticStatus: 'READ_ONLY_DIAGNOSTIC',
+    sourceStatus: 'VERIFIED_FROM_SHEETS_HEADERS_ONLY',
+    headerStatus: 'MATCHED_51_OF_51',
+    responseRowCount: 1,
+    submissionId: fieldStatus(1), respondentId: fieldStatus(2),
+    submittedAt: Object.freeze({ presence: fieldStatus(3), format: dateFormatStatus(cells[2]) }),
+    guardianAndEmergencyContacts: Object.freeze([4, 5, 6, 7].map(columnNumber => Object.freeze({ columnNumber, status: fieldStatus(columnNumber), requiredness: 'PENDING_VERIFICATION' }))),
+    dogBasicInformation: Object.freeze([8, 9, 10, 11, 12, 13].map(columnNumber => Object.freeze({ columnNumber, status: fieldStatus(columnNumber), requiredness: 'PENDING_VERIFICATION' }))),
+    optionalDogInformation: Object.freeze([14, 15].map(columnNumber => Object.freeze({ columnNumber, status: fieldStatus(columnNumber) }))),
+    behaviourAndHealth: Object.freeze(statusByColumn.slice(15, 38)),
+    conditionalDetails: Object.freeze(conditionalDetails),
+    consentGroups: Object.freeze(consentGroups),
+    photoVideoConsent: Object.freeze({ columnNumber: 49, status: fieldStatus(49), meaning: isNonEmpty(cells[48]) ? 'PENDING_VERIFICATION' : 'NOT_SELECTED_DEFAULT_FALSE' }),
+    marketingConsent: Object.freeze({ status: 'NOT_PRESENT_DEFAULT_FALSE' }),
+    signatureReference,
+    signerName: fieldStatus(51),
+    persistence: 'NONE', writes: 0,
+    admissionWorkflow: 'NOT_CALLED', approvalTransition: 'BLOCKED', contractedTransition: 'BLOCKED'
+  });
+}
+
+function createReadOnlySheetsResponseDiagnostic({ reader, spreadsheetId, expectedHeaders = HEADER_MANIFEST.headers } = {}) {
+  if (!reader || typeof reader.get !== 'function' || Object.keys(reader).some(key => key !== 'get')) {
+    throw sheetsError('SHEETS_DIAGNOSTIC_READ_ONLY_PORT_REQUIRED');
+  }
+  if (spreadsheetId !== SHEET_ID) throw sheetsError('SHEETS_DIAGNOSTIC_SOURCE_NOT_ALLOWLISTED');
+  validateHeaderManifest(expectedHeaders, HEADER_MANIFEST.headers);
+  return Object.freeze({
+    kind: 'READ_ONLY_RESPONSE_DIAGNOSTIC',
+    async read() {
+      let snapshot;
+      try {
+        snapshot = await reader.get({ spreadsheetId: SHEET_ID, range: `'${TAB_NAME}'!A1:AY2` });
+      } catch (_) {
+        throw sheetsError('SHEETS_DIAGNOSTIC_READ_FAILED');
+      }
+      if (!snapshot || !Array.isArray(snapshot.values) || snapshot.values.length !== 2) {
+        throw sheetsError('SHEETS_DIAGNOSTIC_RESPONSE_COUNT_INVALID');
+      }
+      try {
+        validateHeaderManifest(snapshot.values[0], HEADER_MANIFEST.headers);
+        return diagnoseSheetResponseRow(snapshot.values[0], snapshot.values[1], { expectedHeaders: HEADER_MANIFEST.headers });
+      } catch (error) {
+        if (['SHEETS_INTAKE_SCHEMA_PENDING', 'SHEETS_INTAKE_HEADER_MISMATCH', 'SHEETS_DIAGNOSTIC_ROW_WIDTH_INVALID'].includes(error?.code)) {
+          throw error;
+        }
+        throw sheetsError('SHEETS_DIAGNOSTIC_INVALID_SNAPSHOT');
+      }
+    }
+  });
+}
+
 function reconcileSheetsDuplicateValues(first, second, { sourceVerified = false } = {}) {
   return reconcileDuplicateColumns(first, second, { sourceVerified });
 }
@@ -162,5 +252,6 @@ function fingerprintSheetsSubmission(normalizedRecord) {
 module.exports = {
   SHEET_ID, TAB_NAME, EXPECTED_COLUMN_COUNT, SOURCE_COLUMN_RANGES, HEADER_MANIFEST,
   validateHeaderManifest, normalizeSheetRow, reconcileSheetsDuplicateValues,
-  createReadOnlySheetsIntakeAdapter, classifySubmissionReplay, fingerprintSheetsSubmission
+  createReadOnlySheetsIntakeAdapter, createReadOnlySheetsResponseDiagnostic,
+  diagnoseSheetResponseRow, classifySubmissionReplay, fingerprintSheetsSubmission
 };

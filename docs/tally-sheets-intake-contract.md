@@ -38,6 +38,25 @@
 
 Sheets 값은 Tally가 기존 연결을 통해 내보낸 현재 셀 값과 열 제목을 제공할 수 있지만, 원본 webhook의 event envelope, `data.fields[].key`, event ID, 서명 헤더 검증, 전달·재시도 메타데이터를 증명하지 않는다. AX 전자서명 셀의 URL/값만으로 원본 서명 증거 또는 보존 가능한 서명 바이너리라고 단정하지 않는다. 기존 webhook verifier는 별도 합성 계약 모듈이며 Sheets parser와 결합하지 않는다.
 
+## MVP 4.1 — 단일 테스트 응답 상태 진단
+
+연결된 읽기 전용 조회로 `A1:AY2`를 총 2회 확인했다. 첫 조회는 로컬 manifest 전달 검증이 중단되어 결과를 진단하지 않고 폐기했으며, 두 번째 조회에서 헤더 51/51 일치와 응답 1행을 상태로 진단했다. 두 조회 모두 지정 범위만 요청했다. 응답 셀 원문은 저장소·로그·보고서에 기록하지 않았고 진단 결과에는 존재/형식 상태만 남겼다.
+
+| 항목 | 진단 상태 |
+|---|---|
+| Submission ID / Respondent ID | 둘 다 `PRESENT`; 값 자체는 비노출 |
+| 제출 시각 | `PRESENT`, ISO 형식 `FORMAT_VALID` |
+| 보호자 이름·연락처·비상연락처·관계 (D:G) | 모두 `PRESENT`; 필수성/검증됨 여부는 판단하지 않음 |
+| 반려견 이름·품종·생년/입양일·성별·중성화·체중 (H:M) | 모두 `PRESENT`; 필수성은 별도 정책으로 미확정 |
+| 행동/건강/주의사항 (P:AL) | P, R:T, U:W, X, Z, AB, AD, AF, AH:AK는 `PRESENT`; Q, S, Y, AA, AC, AE, AG, AL은 `EMPTY` |
+| 조건부 상세 | 빈 상세는 발견됐으나 실제 표시 조건 미검증이므로 모든 상세 검증 상태 `PENDING_VERIFICATION`; 오류로 단정하지 않음 |
+| 다섯 동의 쌍 (39:48) | 각 쌍의 두 출력 열 모두 `PRESENT`; 형식/동의 의미 모두 `PENDING_VERIFICATION` |
+| 사진·영상 동의 (49) | `PRESENT`; 선택 의미 `PENDING_VERIFICATION` |
+| 별도 마케팅 동의 | 확인된 열 없음; 기본 false |
+| 전자서명 참조 (50) / 서명자 (51) | 참조 `PRESENT`, field type/format `PENDING_VERIFICATION`; 서명자 `PRESENT` |
+
+진단은 상태 전용 projection으로 처리되며 제출/응답자 ID, 이름, 연락처, 조건부 응답, 동의값, 서명 URL은 DTO에 포함하지 않는다. 지문 계산, 저장소 호출, workflow 호출, cursor 기록, 원장 쓰기는 수행하지 않았다. `diagnoseSheetResponseRow`와 `createReadOnlySheetsResponseDiagnostic`는 동일 경계를 로컬 합성 테스트로 확인한다. actual connector payload는 로컬 파일이나 프로세스 인수로 전달하지 않고 도구 실행 안에서 상태로 축약했다.
+
 ## 테스트와 게이트
 
 `guardian-auth-server/tally-admission-sheets.test.js`는 합성 헤더/행만 쓴다. 헤더 폭·순서·누락·중복·추가 열, 필수값, 조건부 상세, 동의 미확정, 서명 정보 비노출, 정확 ID replay/conflict, 허용된 GET 범위, 쓰기 port 차단을 검사한다. 실제 sheet를 호출하지 않는다.
