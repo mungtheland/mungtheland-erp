@@ -1,11 +1,11 @@
 # Codex work report
 
 - Step: mvp-audit
-- Work time (KST): 2026-11-28T15:10:22.189+09:00
+- Work time (KST): 2026-11-28T15:12:15.415+09:00
 - Branch: feature/staff-attendance-desktop
 - Implementation commit: d68d7ee7b457cc0ea270928f5557d54a41810893
 - Implementation push: pushed
-- History: history/20261128T151022189-mvp-audit-d68d7ee7b457.md
+- History: history/20261128T151215415-mvp-audit-d68d7ee7b457.md
 
 ## Changed files
 
@@ -20,14 +20,16 @@
 | npm.cmd run test:ci aggregate checks and TAP cases | executed | 252 | 0 | 0 |
 | git diff --cached --check | executed | 1 | 0 | 0 |
 | Live Tally, payment, production ledger, and deployment verification | not run | 0 | 0 | 1 |
+| scripts/Test-CodexReport.ps1 | executed | 24 | 0 | 0 |
 
-- Totals: passed 254, failed 0, not run 1
+- Totals: passed 278, failed 0, not run 1
 
 ## Change summary
 
 - MVP readiness audit and dependency-ordered implementation plan were added as repository documents.
 - Evidence in source and documentation was classified separately from local test success.
 - No external services were accessed and no cloud data or deployment settings were changed.
+- The effort estimate in the plan was re-summed and corrected in a follow-up documentation commit.
 
 ## Failure causes
 
